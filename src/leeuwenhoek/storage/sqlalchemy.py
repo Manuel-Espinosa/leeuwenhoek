@@ -26,10 +26,11 @@ from ..models import Entry, dumps, entries_table, metadata, settings_table, tags
 from .base import StorageDriver
 
 e, t = entries_table.c, tags_table.c
+PRUNE_CHUNK = 5000
 
 
 class SQLAlchemyStorage(StorageDriver):
-    def __init__(self, uri: str) -> None:
+    def __init__(self, uri: str, engine_options: dict[str, Any] | None = None) -> None:
         url = make_url(uri)
         kwargs: dict[str, Any] = {"json_serializer": dumps}
         sqlite = url.get_backend_name() == "sqlite"
@@ -39,6 +40,10 @@ class SQLAlchemyStorage(StorageDriver):
                 kwargs["poolclass"] = StaticPool
             else:
                 os.makedirs(os.path.dirname(os.path.abspath(url.database)), exist_ok=True)
+        else:
+            # Small pool: one writer thread plus the panel, and Cloud SQL has a connection limit.
+            kwargs.update(pool_size=2, max_overflow=3, pool_pre_ping=True, pool_recycle=1800)
+        kwargs.update(engine_options or {})
         self.engine: Engine = create_engine(url, **kwargs)
         if sqlite:
             event.listen(self.engine, "connect", _sqlite_pragmas)
@@ -131,11 +136,17 @@ class SQLAlchemyStorage(StorageDriver):
         return counts
 
     def prune(self, hours: float) -> int:
+        """Delete old entries in chunks so a big backlog never holds a long lock."""
         cutoff = utcnow() - timedelta(hours=hours)
-        old = select(e.uuid).where(e.created_at < cutoff)
-        with self.engine.begin() as conn:
-            conn.execute(delete(tags_table).where(t.entry_uuid.in_(old)))
-            return conn.execute(delete(entries_table).where(e.created_at < cutoff)).rowcount
+        total = 0
+        while True:
+            chunk = select(e.uuid).where(e.created_at < cutoff).limit(PRUNE_CHUNK)
+            with self.engine.begin() as conn:
+                uuids = list(conn.execute(chunk).scalars())
+                if not uuids:
+                    return total
+                conn.execute(delete(tags_table).where(t.entry_uuid.in_(uuids)))
+                total += conn.execute(delete(entries_table).where(e.uuid.in_(uuids))).rowcount
 
     def clear(self) -> int:
         with self.engine.begin() as conn:

@@ -21,6 +21,7 @@ from sqlalchemy import (
     String,
     Table,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 def utcnow() -> datetime:
@@ -79,7 +80,7 @@ entries_table = Table(
     Column("parent_batch_id", String(36), nullable=True),
     Column("family_hash", String(40), nullable=True, index=True),
     Column("type", String(32), nullable=False, index=True),
-    Column("content", JSON, nullable=False),
+    Column("content", JSON().with_variant(JSONB(), "postgresql"), nullable=False),
     Column("is_root", Boolean, nullable=False, default=False),
     Column("created_at", DateTime, nullable=False, index=True),
     Index("ix_leeuwenhoek_entries_type_created", "type", "created_at"),

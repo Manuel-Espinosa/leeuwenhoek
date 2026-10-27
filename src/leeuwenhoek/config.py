@@ -26,6 +26,15 @@ DEFAULTS: dict[str, Any] = {
     "BASIC_AUTH": None,
     "PAGE_SIZE": 50,
     "BULMA_CDN": False,
+    "SAMPLE_RATE": 1.0,  # fraction of batches to record (0-1)
+    "ONLY_ERRORS": False,  # keep only batches with an exception or a 5xx response
+    "QUEUE_MAX_BATCHES": 1000,  # pending writes kept in memory before dropping
+    "ENGINE_OPTIONS": {},  # extra create_engine() kwargs for the storage engine
+    "AUTO_INSTALL": True,  # create tables on init_app
+    "AUTO_PRUNE": True,  # prune in the background writer
+    "PRUNE_INTERVAL_MINUTES": 30,
+    "HANDLED_EXCEPTION_MIN_STATUS": 500,  # capture exceptions turned into responses >= this
+    "FLUSH_TIMEOUT": 5.0,  # seconds to wait for pending writes at exit
     "REQUEST_TAGS": {},  # {"tag_name": "dotted.path" | ["path", ...]}
 }
 

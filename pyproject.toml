@@ -35,7 +35,13 @@ build-backend = "uv_build"
 module-name = "leeuwenhoek"
 
 [dependency-groups]
-dev = ["pytest", "pytest-cov", "ruff", "mypy"]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "psycopg[binary]>=3.3.6",
+]
 
 [tool.ruff]
 line-length = 100
