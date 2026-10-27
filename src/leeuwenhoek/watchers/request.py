@@ -10,6 +10,7 @@ from flask import Flask, Response, request, session
 
 from ..context import Batch
 from ..filters import limit_payload, redact, redact_headers
+from ..tags import from_paths
 from .base import Watcher
 
 START = "leeuwenhoek.started"
@@ -63,6 +64,7 @@ class RequestWatcher(Watcher):
             "rule": rule.rule if rule else None,
             "endpoint": request.endpoint,
             "blueprint": request.blueprint,
+            "view_args": request.view_args or {},
             "ip": request.remote_addr,
             "headers": redact_headers(request.headers, cfg.hidden_headers),
             "query": redact(request.args.to_dict(flat=False), hidden),
@@ -81,6 +83,7 @@ class RequestWatcher(Watcher):
             tags.append(f"status:{status}")
         if user_id is not None:
             tags.append(f"user:{user_id}")
+        batch.tags.extend(from_paths(content, cfg.request_tags))
         self.record(content, tags=tags, is_root=True, force=True)
 
     @staticmethod

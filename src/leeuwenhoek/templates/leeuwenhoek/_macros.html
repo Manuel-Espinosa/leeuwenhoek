@@ -23,7 +23,7 @@
 {%- endmacro %}
 
 {% macro tags(items) -%}
-  {% if items %}<div class="tags">{% for t in items %}<a class="tag" href="?tag={{ t | urlencode }}">{{ t }}</a>{% endfor %}</div>{% endif %}
+  {% if items %}<div class="tags">{% for t in items %}<a class="tag" href="{{ url_for('leeuwenhoek.listing', slug='batches', tag=t) }}">{{ t }}</a>{% endfor %}</div>{% endif %}
 {%- endmacro %}
 
 {# Recursive JSON viewer with nested <details>, no libraries. #}

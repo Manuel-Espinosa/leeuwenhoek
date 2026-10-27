@@ -10,7 +10,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from flask import Flask, request
+from flask import Flask, current_app, has_app_context, request
 
 from . import context
 from .config import Config
@@ -18,10 +18,11 @@ from .context import Batch, current_batch, is_internal
 from .filters import is_ignored
 from .models import Entry, jsonable
 from .storage import MemoryStorage, SQLAlchemyStorage, StorageDriver
+from .tags import Tagger, normalize
 from .watchers import AVAILABLE, Watcher
 from .watchers.dump import dump
 
-__all__ = ["Leeuwenhoek", "dump"]
+__all__ = ["Leeuwenhoek", "add_tags", "dump"]
 
 log = logging.getLogger("leeuwenhoek")
 
@@ -38,6 +39,7 @@ class Leeuwenhoek:
         #: callbacks ``fn(batch, exc)`` run when a batch closes, before it is persisted
         self.on_finish: list[Callable[[Batch, BaseException | None], None]] = []
         self._authorize: Callable[[], bool] | None = None
+        self._taggers: list[Tagger] = []
         self._queue: queue.Queue[list[Entry] | None] | None = None
         self._recording = (True, 0.0)
         if app is not None:
@@ -91,6 +93,19 @@ class Leeuwenhoek:
         """Panel access rule. Replaces the default check (``app.debug``)."""
         self._authorize = rule
         return rule
+
+    def tag(self, tagger: Tagger) -> Tagger:
+        """Register a callback ``fn(entry) -> iterable of tags``; usable as a decorator."""
+        self._taggers.append(tagger)
+        return tagger
+
+    def add_tags(self, *tags: str) -> bool:
+        """Tag the current batch; the tags reach every entry of it. ``False`` if none is active."""
+        batch = current_batch()
+        if batch is None or not batch.recording:
+            return False
+        batch.tags.extend(tags)
+        return True
 
     # ------------------------------------------------------------------ state
 
@@ -191,10 +206,21 @@ class Leeuwenhoek:
     def persist(self, batch: Batch) -> None:
         if not batch.entries:
             return
+        self._apply_tags(batch)
         if self._queue is not None:
             self._queue.put(batch.entries)
         else:
             self._save(batch.entries)
+
+    def _apply_tags(self, batch: Batch) -> None:
+        for entry in batch.entries:
+            extra: list[str] = []
+            for tagger in self._taggers:
+                try:
+                    extra.extend(tagger(entry) or ())
+                except Exception:
+                    log.exception("A tagger failed")
+            entry.tags = normalize([*entry.tags, *batch.tags, *extra])
 
     def _save(self, entries: list[Entry]) -> None:
         with context.internal():
@@ -220,3 +246,11 @@ class Leeuwenhoek:
 
     def prune(self, hours: float | None = None) -> int:
         return self.storage.prune(self.config.prune_hours if hours is None else hours)
+
+
+def add_tags(*tags: str) -> bool:
+    """Tag the current batch from anywhere (views, use cases, workers)."""
+    if not has_app_context():
+        return False
+    lw = current_app.extensions.get("leeuwenhoek")
+    return lw.add_tags(*tags) if lw else False

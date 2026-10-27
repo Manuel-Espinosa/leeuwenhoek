@@ -17,6 +17,7 @@ class Batch:
     entries: list[Entry] = field(default_factory=list)
     recording: bool = True  # False if the cycle was left out by a filter or by pausing
     max_entries: int = 500
+    tags: list[str] = field(default_factory=list)  # propagated to every entry on persist
     meta: dict[str, Any] = field(default_factory=dict)  # data passed between hooks
 
     def add(self, entry: Entry, force: bool = False) -> bool:

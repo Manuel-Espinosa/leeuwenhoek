@@ -26,6 +26,7 @@ DEFAULTS: dict[str, Any] = {
     "BASIC_AUTH": None,
     "PAGE_SIZE": 50,
     "BULMA_CDN": False,
+    "REQUEST_TAGS": {},  # {"tag_name": "dotted.path" | ["path", ...]}
 }
 
 
