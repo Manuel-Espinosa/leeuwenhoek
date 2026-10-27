@@ -1,0 +1,34 @@
+{% from "leeuwenhoek/_macros.html" import status_tag, duration, time_ago, json_tree %}
+{% macro head() %}<th>Verb</th><th>Path</th><th>Status</th><th>Duration</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td><span class="tag">{{ e.content.method }}</span></td>
+  <td>{{ e.content.path }}</td>
+  <td>{{ status_tag(e.content.status) }}</td>
+  <td>{{ duration(e.content.duration_ms) }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}{{ e.content.method }} {{ e.content.path }} {{ status_tag(e.content.status) }} {{ duration(e.content.duration_ms) }}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <div class="level">
+    <div class="level-item has-text-centered"><div><p class="heading">Method</p><p class="title is-5">{{ c.method }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Status</p><p class="title is-5">{{ status_tag(c.status) }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Duration</p><p class="title is-5">{{ c.duration_ms | lw_duration }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">IP</p><p class="title is-5">{{ c.ip or '—' }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">User</p><p class="title is-5">{{ c.user or '—' }}</p></div></div>
+  </div>
+  <p class="mb-3"><code>{{ c.url }}</code><br>
+    <span class="is-size-7 has-text-grey">{{ c.rule }} → {{ c.endpoint }}</span></p>
+  <div class="lw-tabs">
+    <div class="tabs"><ul>
+      <li class="is-active"><a data-tab="payload">Payload</a></li>
+      <li><a data-tab="headers">Headers</a></li>
+      <li><a data-tab="session">Session</a></li>
+      <li><a data-tab="response">Response</a></li>
+    </ul></div>
+    <div data-panel="payload">{{ json_tree({'query': c.query, 'body': c.body}, true) }}</div>
+    <div data-panel="headers" hidden>{{ json_tree({'request': c.headers, 'response': c.response_headers}, true) }}</div>
+    <div data-panel="session" hidden>{{ json_tree(c.session, true) }}</div>
+    <div data-panel="response" hidden>{{ json_tree(c.response_body) if c.response_body is not none else 'No body recorded' }}</div>
+  </div>
+{% endmacro %}

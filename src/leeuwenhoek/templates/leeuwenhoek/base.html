@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Leeuwenhoek{% endblock %}</title>
+  {% if use_cdn %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+  {% else %}
+    <link rel="stylesheet" href="{{ url_for('leeuwenhoek.static', filename='leeuwenhoek/bulma.min.css') }}">
+  {% endif %}
+  <link rel="stylesheet" href="{{ url_for('leeuwenhoek.static', filename='leeuwenhoek/leeuwenhoek.css') }}">
+</head>
+<body>
+  <nav class="navbar is-dark" role="navigation">
+    <div class="navbar-brand">
+      <a class="navbar-item has-text-weight-bold" href="{{ url_for('leeuwenhoek.home') }}">🔬 Leeuwenhoek</a>
+    </div>
+    <div class="navbar-menu is-active">
+      <div class="navbar-start">
+        <div class="navbar-item">
+          <form method="post" action="{{ url_for('leeuwenhoek.toggle_recording') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="tag is-medium {{ 'is-success' if recording else 'is-danger' }}" type="submit"
+                    title="Pause / resume recording">
+              {{ '● Recording' if recording else '❚❚ Paused' }}
+            </button>
+          </form>
+        </div>
+        <div class="navbar-item">
+          <form method="post" action="{{ url_for('leeuwenhoek.clear') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button is-small is-danger is-outlined" type="submit">Clear</button>
+          </form>
+        </div>
+      </div>
+      <div class="navbar-end">
+        <div class="navbar-item">
+          <form method="get" action="{{ url_for('leeuwenhoek.listing', slug=slug|default('requests')) }}">
+            <div class="field has-addons">
+              <div class="control"><input class="input is-small" type="search" name="q" placeholder="Search…" value="{{ q|default('') }}"></div>
+              <div class="control"><button class="button is-small is-info" type="submit">Search</button></div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <section class="section pt-5">
+    <div class="columns">
+      <aside class="column is-2">
+        <aside class="menu">
+          <ul class="menu-list">
+            {% for s in sections %}
+              <li>
+                <a href="{{ url_for('leeuwenhoek.listing', slug=s.slug) }}" class="{{ 'is-active' if s.slug == slug|default('') }}">
+                  {{ s.label }} <span class="tag is-rounded is-pulled-right">{{ s.count }}</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </aside>
+      </aside>
+      <main class="column">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </section>
+  <script src="{{ url_for('leeuwenhoek.static', filename='leeuwenhoek/leeuwenhoek.js') }}"></script>
+</body>
+</html>

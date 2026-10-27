@@ -1,0 +1,16 @@
+.lw-row { cursor: pointer; }
+.lw-tree { margin-left: .25rem; }
+.lw-tree ul { margin-left: 1.25rem; border-left: 1px solid var(--bulma-border, #dbdbdb); padding-left: .75rem; list-style: none; }
+.lw-tree summary { cursor: pointer; color: var(--bulma-text-weak, #7a7a7a); }
+.lw-key { font-weight: 600; }
+.lw-str { color: #2f7d32; white-space: pre-wrap; word-break: break-word; }
+.lw-num { color: #1565c0; }
+pre.lw-str { padding: .5rem .75rem; }
+.lw-sql .lw-kw { color: #c2185b; font-weight: 600; }
+.lw-frame { margin-bottom: .5rem; }
+.lw-snippet { padding: .5rem 0; }
+.lw-snippet span.lw-current { background: rgba(255, 56, 96, .18); display: block; }
+.lw-snippet .lw-ln { display: inline-block; width: 3.5em; text-align: right; color: #999; margin-right: .75em; user-select: none; }
+.menu-list a .tag { margin-left: .5rem; }
+/* Keep the count badge readable on the highlighted (blue) menu item. */
+.menu-list a.is-active .tag { background: rgba(255, 255, 255, .25); color: #fff; }

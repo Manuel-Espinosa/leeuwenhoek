@@ -1,0 +1,18 @@
+{% extends "leeuwenhoek/base.html" %}
+{% from "leeuwenhoek/_macros.html" import time_ago %}
+{% block title %}Exception · Leeuwenhoek{% endblock %}
+{% block content %}
+  {% set slug = 'exceptions' %}
+  <h1 class="title is-4">{{ first.content['class'] }} <span class="tag is-rounded is-danger">{{ entries | length }} occurrences</span></h1>
+  <p class="subtitle is-6">{{ first.content.file }}:{{ first.content.line }}</p>
+  <table class="table is-fullwidth is-hoverable is-narrow">
+    <thead><tr><th>Message</th><th>When</th></tr></thead>
+    <tbody>
+    {% for e in entries %}
+      <tr class="lw-row" data-href="{{ url_for('leeuwenhoek.detail', slug='exceptions', uuid=e.uuid) }}">
+        <td>{{ e.content.message | lw_truncate(120) }}</td><td>{{ time_ago(e.created_at) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

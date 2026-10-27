@@ -1,0 +1,16 @@
+{% from "leeuwenhoek/_macros.html" import level_tag, time_ago, json_tree %}
+{% macro head() %}<th>Level</th><th>Message</th><th>Logger</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td>{{ level_tag(e.content.level) }}</td>
+  <td>{{ e.content.message | lw_truncate(100) }}</td>
+  <td class="is-size-7">{{ e.content.logger }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}{{ level_tag(e.content.level) }} {{ e.content.message | lw_truncate(100) }}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <p>{{ level_tag(c.level) }} <span class="has-text-grey">{{ c.logger }}</span></p>
+  <pre class="mt-3">{{ c.message }}</pre>
+  {% if c.extra %}<p class="mt-3 mb-1"><strong>Extra</strong></p>{{ json_tree(c.extra, true) }}{% endif %}
+  {% if c.exc_info %}<details class="mt-3" open><summary>Traceback</summary><pre>{{ c.exc_info }}</pre></details>{% endif %}
+{% endmacro %}

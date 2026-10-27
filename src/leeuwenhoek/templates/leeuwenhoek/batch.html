@@ -1,0 +1,10 @@
+{% extends "leeuwenhoek/base.html" %}
+{% block title %}Batch {{ batch_id[:8] }} · Leeuwenhoek{% endblock %}
+{% block content %}
+  <h1 class="title is-4">Batch <code>{{ batch_id }}</code> <span class="tag is-rounded">{{ total }} entries</span></h1>
+  {% if main %}
+    {% import "leeuwenhoek/entries/request.html" as t with context %}
+    <div class="box">{{ t.detail(main) }}</div>
+  {% endif %}
+  {% include "leeuwenhoek/_related.html" %}
+{% endblock %}

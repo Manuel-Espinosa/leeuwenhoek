@@ -1,0 +1,92 @@
+{# Shared panel macros #}
+
+{% macro status_tag(code) -%}
+  {%- if code is none -%}<span class="tag">—</span>
+  {%- elif code >= 500 -%}<span class="tag is-danger">{{ code }}</span>
+  {%- elif code >= 400 -%}<span class="tag is-warning">{{ code }}</span>
+  {%- elif code >= 300 -%}<span class="tag is-info">{{ code }}</span>
+  {%- else -%}<span class="tag is-success">{{ code }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro level_tag(level) -%}
+  {%- set cls = {'DEBUG': '', 'INFO': 'is-info', 'WARNING': 'is-warning', 'ERROR': 'is-danger', 'CRITICAL': 'is-danger'}.get(level, '') -%}
+  <span class="tag {{ cls }}">{{ level }}</span>
+{%- endmacro %}
+
+{% macro duration(ms) -%}
+  <span class="has-text-grey">{{ ms | lw_duration }}</span>
+{%- endmacro %}
+
+{% macro time_ago(dt) -%}
+  <time class="has-text-grey" title="{{ dt.isoformat() }} UTC">{{ dt | lw_timeago }}</time>
+{%- endmacro %}
+
+{% macro tags(items) -%}
+  {% if items %}<div class="tags">{% for t in items %}<a class="tag" href="?tag={{ t | urlencode }}">{{ t }}</a>{% endfor %}</div>{% endif %}
+{%- endmacro %}
+
+{# Recursive JSON viewer with nested <details>, no libraries. #}
+{% macro json_tree(value, open=false) -%}
+  {%- if value is mapping -%}
+    {%- if value -%}
+      <details class="lw-tree" {% if open %}open{% endif %}>
+        <summary>{ {{ value | length }} }</summary>
+        <ul>{% for k, v in value.items() %}<li><span class="lw-key">{{ k }}</span>: {{ json_tree(v) }}</li>{% endfor %}</ul>
+      </details>
+    {%- else -%}<span class="has-text-grey">{}</span>{%- endif -%}
+  {%- elif value is string -%}
+    {%- if value | length > 120 or '\n' in value -%}<pre class="lw-str">{{ value }}</pre>{%- else -%}<span class="lw-str">"{{ value }}"</span>{%- endif -%}
+  {%- elif value is sequence -%}
+    {%- if value -%}
+      <details class="lw-tree" {% if open %}open{% endif %}>
+        <summary>[ {{ value | length }} ]</summary>
+        <ul>{% for v in value %}<li>{{ json_tree(v) }}</li>{% endfor %}</ul>
+      </details>
+    {%- else -%}<span class="has-text-grey">[]</span>{%- endif -%}
+  {%- elif value is none -%}<span class="has-text-grey">null</span>
+  {%- else -%}<span class="lw-num">{{ value | tojson }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro sql_block(sql) -%}
+  <pre class="lw-sql">{{ sql | lw_sql }}</pre>
+{%- endmacro %}
+
+{# Collapsible traceback and snippet with the line highlighted. #}
+{% macro traceback(frames, text) -%}
+  {% for f in frames | reverse %}
+    <details class="lw-frame" {% if loop.first %}open{% endif %}>
+      <summary><code>{{ f.file }}:{{ f.line }}</code> en <strong>{{ f.function }}</strong></summary>
+      {% if f.snippet %}
+        <pre class="lw-snippet">{% for l in f.snippet %}<span class="{{ 'lw-current' if l.current }}"><span class="lw-ln">{{ l.line }}</span> {{ l.code }}
+</span>{% endfor %}</pre>
+      {% else %}<pre class="lw-snippet">{{ f.code }}</pre>{% endif %}
+    </details>
+  {% endfor %}
+  <details><summary>Traceback completo</summary><pre>{{ text }}</pre></details>
+{%- endmacro %}
+
+{% macro pagination(older_url, newer_url) -%}
+  {% if older_url or newer_url %}
+  <nav class="pagination is-centered mt-4" role="navigation">
+    {% if newer_url %}<a class="pagination-previous" href="{{ newer_url }}">Newer</a>{% else %}<span class="pagination-previous" disabled>Newer</span>{% endif %}
+    {% if older_url %}<a class="pagination-next" href="{{ older_url }}">Older</a>{% else %}<span class="pagination-next" disabled>Older</span>{% endif %}
+  </nav>
+  {% endif %}
+{%- endmacro %}
+
+{# Generic table: each type defines head() and row(e) in entries/<type>.html. Import `with context`. #}
+{% macro entry_table(entries, entry_type) -%}
+  {% import "leeuwenhoek/entries/" ~ entry_type ~ ".html" as t with context %}
+  <div class="table-container">
+    <table class="table is-fullwidth is-hoverable is-narrow">
+      <thead><tr>{{ t.head() }}</tr></thead>
+      <tbody>
+        {% for e in entries %}
+          <tr class="lw-row" data-href="{{ url_for('leeuwenhoek.detail', slug=slug_for(entry_type), uuid=e.uuid) }}">{{ t.row(e) }}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{%- endmacro %}

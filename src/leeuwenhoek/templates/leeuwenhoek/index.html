@@ -1,0 +1,41 @@
+{% extends "leeuwenhoek/base.html" %}
+{% from "leeuwenhoek/_macros.html" import entry_table, pagination, time_ago, tags with context %}
+{% block title %}{{ title }} · Leeuwenhoek{% endblock %}
+{% block content %}
+  <div class="level">
+    <div class="level-left"><h1 class="title is-4">{{ title }}</h1></div>
+    <div class="level-right">
+      <form method="get">
+        <input type="hidden" name="q" value="{{ q }}">
+        <div class="field has-addons">
+          <div class="control"><input class="input is-small" name="tag" placeholder="tag (e.g. status:500)" value="{{ tag }}"></div>
+          <div class="control"><button class="button is-small" type="submit">Filter</button></div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if not entries %}
+    <div class="notification">Nothing here yet.</div>
+  {% elif entry_type %}
+    {{ entry_table(entries, entry_type) }}
+  {% else %}
+    {# Batches: root entries of any type #}
+    <div class="table-container">
+      <table class="table is-fullwidth is-hoverable is-narrow">
+        <thead><tr><th>Type</th><th>Summary</th><th>When</th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+          {% import "leeuwenhoek/entries/" ~ e.type ~ ".html" as t with context %}
+          <tr class="lw-row" data-href="{{ url_for('leeuwenhoek.batch', batch_id=e.batch_id) }}">
+            <td><span class="tag">{{ e.type }}</span></td>
+            <td>{{ t.summary(e) }}</td>
+            <td>{{ time_ago(e.created_at) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+  {{ pagination(older_url, newer_url) }}
+{% endblock %}

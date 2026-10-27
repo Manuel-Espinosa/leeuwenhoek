@@ -1,0 +1,13 @@
+{% from "leeuwenhoek/_macros.html" import entry_table with context %}
+{# One card per related section of the batch, with its count and total time. #}
+{% for g in (groups if groups is defined else related) %}
+  <div class="card mb-4">
+    <header class="card-header">
+      <p class="card-header-title">{{ g.label }} <span class="tag is-rounded ml-2">{{ g.count }}</span></p>
+      {% if g.total_ms %}<p class="card-header-icon has-text-grey">{{ g.total_ms | lw_duration }} en total</p>{% endif %}
+    </header>
+    <div class="card-content p-3">
+      {{ entry_table(g.entries, g.type) }}
+    </div>
+  </div>
+{% endfor %}

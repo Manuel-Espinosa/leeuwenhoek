@@ -1,0 +1,13 @@
+{% from "leeuwenhoek/_macros.html" import time_ago %}
+{% macro head() %}<th>Type</th><th>Value</th><th>Origin</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td><span class="tag">{{ e.content.type }}</span></td>
+  <td><code>{{ e.content.repr | lw_truncate(90) }}</code></td>
+  <td class="is-size-7">{{ e.content.file.split('/')[-1] }}:{{ e.content.line }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}dump <code>{{ e.content.repr | lw_truncate(100) }}</code>{% endmacro %}
+{% macro detail(e) %}
+  <p class="mb-2"><span class="tag">{{ e.content.type }}</span> <code class="is-size-7">{{ e.content.file }}:{{ e.content.line }}</code></p>
+  <pre>{{ e.content.repr }}</pre>
+{% endmacro %}

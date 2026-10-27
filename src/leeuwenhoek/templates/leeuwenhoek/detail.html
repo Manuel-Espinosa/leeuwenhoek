@@ -1,0 +1,19 @@
+{% extends "leeuwenhoek/base.html" %}
+{% from "leeuwenhoek/_macros.html" import tags, time_ago %}
+{% block title %}{{ entry.type }} · Leeuwenhoek{% endblock %}
+{% block content %}
+  {% import "leeuwenhoek/entries/" ~ entry.type ~ ".html" as t with context %}
+  <nav class="breadcrumb"><ul>
+    <li><a href="{{ url_for('leeuwenhoek.listing', slug=slug_for(entry.type)) }}">{{ slug_for(entry.type) | capitalize }}</a></li>
+    <li class="is-active"><a>{{ entry.uuid[:8] }}</a></li>
+    <li><a href="{{ url_for('leeuwenhoek.batch', batch_id=entry.batch_id) }}">View full batch</a></li>
+  </ul></nav>
+
+  <div class="box">
+    {{ t.detail(entry) }}
+    {{ tags(entry.tags) }}
+    <p class="is-size-7 has-text-grey">{{ time_ago(entry.created_at) }} · batch {{ entry.batch_id }}</p>
+  </div>
+
+  {% include "leeuwenhoek/_related.html" %}
+{% endblock %}
