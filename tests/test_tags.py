@@ -1,3 +1,5 @@
+import base64
+
 import pytest
 from conftest import entries
 from flask import jsonify
@@ -17,6 +19,11 @@ def test_resolve_paths():
     assert resolve(data, "items.1.id") == [2]
     assert resolve(data, "raw.a.b") == [3]  # JSON strings are parsed on demand
     assert resolve(data, "missing.path") == []
+    envelope = {
+        "message": {"data": base64.b64encode(b'{"order": {"imported_id": "PS-9"}}').decode()}
+    }
+    assert resolve(envelope, "message.data.order.imported_id") == ["PS-9"]
+    assert resolve({"message": {"data": "aGVsbG8="}}, "message.data.x") == []  # base64, not JSON
     assert resolve(data, "order") == []  # mappings are not scalars
     assert from_paths(data, {"id": ["items.id", "order.imported_id"]}) == ["id:1", "id:2", "id:A1"]
 

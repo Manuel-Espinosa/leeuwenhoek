@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
@@ -15,12 +16,22 @@ MAX_TAG_LENGTH = 255
 MAX_VALUES_PER_PATH = 20
 
 
+def decode(text: str) -> Any:
+    """Parse a JSON string, or base64-encoded JSON (Pub/Sub push ``message.data``)."""
+    for attempt in (lambda: text, lambda: base64.b64decode(text, validate=True).decode("utf-8")):
+        try:
+            return json.loads(attempt())
+        except ValueError:  # includes binascii.Error and UnicodeDecodeError
+            continue
+    return None
+
+
 def resolve(data: Any, path: str) -> list[Any]:
     """Return every scalar found at the dotted ``path``.
 
     Lists are traversed transparently (``items.id`` yields the id of every item, ``items.0.id``
-    only the first one) and JSON strings are parsed when the path continues through them,
-    which lets a path reach into a stored response body.
+    only the first one). JSON strings, plain or base64-encoded, are parsed when the path continues
+    through them, which lets a path reach into a response body or a Pub/Sub message.
     """
     found: list[Any] = []
 
@@ -28,9 +39,8 @@ def resolve(data: Any, path: str) -> list[Any]:
         if len(found) >= MAX_VALUES_PER_PATH:
             return
         if isinstance(node, str) and parts:
-            try:
-                node = json.loads(node)
-            except ValueError:
+            node = decode(node)
+            if node is None:
                 return
         if not parts:
             if isinstance(node, (list, tuple)):
