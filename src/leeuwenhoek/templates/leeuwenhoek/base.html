@@ -4,6 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Leeuwenhoek{% endblock %}</title>
+  {#- Apply a stored theme before any CSS loads, so there is no flash of the wrong theme.
+      Without a stored choice no attribute is set and Bulma follows prefers-color-scheme.
+      The panel sends no CSP of its own; if the host app sets one with nonces and exposes
+      csp_nonce() to Jinja (as Flask-Talisman does), the script carries that nonce. #}
+  <script id="lw-theme-init"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>
+    (function () {
+      try {
+        var theme = localStorage.getItem("leeuwenhoek-theme");
+        if (theme === "light" || theme === "dark") document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {}
+    })();
+  </script>
   {% if use_cdn %}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
   {% else %}
@@ -35,6 +47,12 @@
         </div>
       </div>
       <div class="navbar-end">
+        <div class="navbar-item">
+          <button class="button is-small is-light is-outlined" type="button" id="lw-theme-toggle"
+                  title="Theme: follow the system, dark or light">
+            <span data-theme-label>Theme: auto</span>
+          </button>
+        </div>
         <div class="navbar-item">
           <form method="get" action="{{ url_for('leeuwenhoek.listing', slug=slug|default('requests')) }}">
             <div class="field has-addons">
