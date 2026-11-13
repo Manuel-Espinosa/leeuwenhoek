@@ -41,6 +41,7 @@ DEFAULTS: dict[str, Any] = {
     "REQUEST_TAGS": {},  # {"tag_name": "dotted.path" | ["path", ...]}
     "TRACK_MEMORY": False,  # record each request's peak memory with tracemalloc
     "SLOW_QUERY_MS": 100,  # queries slower than this are flagged as slow
+    "CACHE_VALUES": False,  # store the values read and written by the cache watcher
 }
 
 

@@ -1,0 +1,29 @@
+{% from "leeuwenhoek/_macros.html" import duration, time_ago, json_tree %}
+{% macro result_tag(c) -%}
+  {%- if c.hit is defined and c.hit is not none -%}
+    {%- if c.hit %}<span class="tag is-success is-light">hit</span>{% else %}<span class="tag is-warning is-light">miss</span>{% endif -%}
+  {%- elif c.hits is defined -%}
+    <span class="tag is-success is-light">{{ c.hits }} hits</span> <span class="tag is-warning is-light">{{ c.misses }} misses</span>
+  {%- endif -%}
+{%- endmacro %}
+{% macro keys(c, length=80) %}{% if c.operation == "clear" %}<span class="has-text-grey">all keys</span>{% else %}<code>{{ c['keys'] | join(", ") | lw_truncate(length) }}</code>{% endif %}{% endmacro %}
+{% macro head() %}<th>Operation</th><th>Keys</th><th>Result</th><th>Duration</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td><span class="tag">{{ e.content.operation }}</span></td>
+  <td>{{ keys(e.content) }}</td>
+  <td>{{ result_tag(e.content) }}</td>
+  <td>{{ duration(e.content.duration_ms) }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}<span class="tag">{{ e.content.operation }}</span> {{ keys(e.content, 100) }} {{ result_tag(e.content) }}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <p class="mb-2"><span class="tag">{{ c.operation }}</span> {{ result_tag(c) }} <strong>{{ c.duration_ms | lw_duration }}</strong>
+    {%- if c.backend %} · <span class="has-text-grey">{{ c.backend }}</span>{% endif %}</p>
+  <table class="table is-narrow is-fullwidth">
+    <tr><th>Keys</th><td>{% if c.operation == "clear" %}<span class="has-text-grey">all keys</span>{% else %}{% for k in c['keys'] %}<code>{{ k }}</code>{% if not loop.last %}<br>{% endif %}{% endfor %}{% endif %}</td></tr>
+    {% if c.timeout is defined %}<tr><th>TTL</th><td>{% if c.timeout is none %}<span class="has-text-grey">backend default</span>{% elif c.timeout == 0 %}never expires{% else %}{{ c.timeout }} s{% endif %}</td></tr>{% endif %}
+    {% if c.result is defined and c.result is not none %}<tr><th>Result</th><td><code>{{ c.result | tojson }}</code></td></tr>{% endif %}
+  </table>
+  {% if c.get('values') %}<p class="mt-3 mb-1"><strong>Values</strong></p>{{ json_tree(c.get('values'), true) }}{% endif %}
+{% endmacro %}

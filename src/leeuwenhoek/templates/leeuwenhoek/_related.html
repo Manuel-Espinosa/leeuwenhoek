@@ -1,10 +1,11 @@
 {% from "leeuwenhoek/_macros.html" import entry_table with context %}
-{# One card per related section of the batch, with its count, slow entries and total time. #}
+{# One card per related section of the batch, with its count, slow entries, cache hits and total time. #}
 {% for g in (groups if groups is defined else related) %}
   <div class="card mb-4">
     <header class="card-header">
       <p class="card-header-title">{{ g.label }} <span class="tag is-rounded ml-2">{{ g.count }}</span>
-        {%- if g.slow %}<span class="tag is-warning is-rounded ml-2">{{ g.slow }} slow</span>{% endif %}</p>
+        {%- if g.slow %}<span class="tag is-warning is-rounded ml-2">{{ g.slow }} slow</span>{% endif %}
+        {%- if g.type == "cache" %}<span class="tag is-success is-light is-rounded ml-2">{{ g.hits }} hits</span><span class="tag is-warning is-light is-rounded ml-2">{{ g.misses }} misses</span>{% endif %}</p>
       {% if g.total_ms %}<p class="card-header-icon has-text-grey">{{ g.total_ms | lw_duration }} en total</p>{% endif %}
     </header>
     <div class="card-content p-3">

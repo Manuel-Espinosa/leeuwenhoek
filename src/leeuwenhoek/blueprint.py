@@ -41,7 +41,10 @@ SLUGS = {
     "exception": "exceptions",
     "log": "logs",
     "dump": "dumps",
+    "cache": "cache",
 }
+#: group labels that are not the entry type plus "s"
+LABELS = {"query": "Queries", "cache": "Cache"}
 TYPES = {slug: type_ for type_, slug in SLUGS.items()}
 BATCHES = "batches"
 
@@ -340,7 +343,7 @@ def family(hash: str) -> str:
 
 
 def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, Any]]:
-    """Group by type and compute each group's count, total time and slow entries."""
+    """Group by type and compute each group's count, total time, slow entries and cache hits."""
     groups: dict[str, list[Entry]] = {}
     for entry in entries:
         if skip is not None and entry.uuid == skip.uuid:
@@ -350,11 +353,13 @@ def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, An
     return [
         {
             "type": type_,
-            "label": type_.capitalize() + ("ies" if type_ == "query" else "s"),
+            "label": LABELS.get(type_, type_.capitalize() + "s"),
             "entries": items,
             "count": len(items),
             "total_ms": sum(i.content.get("duration_ms") or 0 for i in items) or None,
             "slow": sum(1 for i in items if i.content.get("slow")),
+            "hits": sum(i.content.get("hits") or 0 for i in items),
+            "misses": sum(i.content.get("misses") or 0 for i in items),
         }
         for type_, items in sorted(groups.items(), key=lambda kv: order.index(kv[0]))
     ]
