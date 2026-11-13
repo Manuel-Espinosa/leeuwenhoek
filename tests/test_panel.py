@@ -133,6 +133,122 @@ def test_bundled_bulma_supports_data_theme(client):
     assert "[data-theme=dark]" in css and "[data-theme=light]" in css
 
 
+ROW_TYPES = [
+    ("requests", "request"),
+    ("batches", None),
+    ("queries", "query"),
+    ("logs", "log"),
+    ("exceptions", "exception"),
+    ("dumps", "dump"),
+]
+
+
+@pytest.mark.parametrize(("slug", "type_"), ROW_TYPES)
+def test_rows_endpoint(app, lw, client, slug, type_):
+    from leeuwenhoek import dump
+
+    app.add_url_rule("/d", "d", lambda: dump([1, 2]) and "ok")
+
+    def ids(type_):
+        if type_ is None:
+            return sorted(e.id for e in entries(lw) if e.is_root)
+        return sorted(e.id for e in entries(lw, type_))
+
+    for path in ("/hello", "/boom", "/d"):
+        client.get(path)
+    first = ids(type_)
+    assert first, slug
+
+    # Without a cursor: the newest rows, as in the listing.
+    html = client.get(f"/leeuwenhoek/{slug}/rows").text
+    assert "<tr" in html and "<html" not in html
+    assert html.count('class="lw-row"') == len(first)
+    assert f'data-id="{first[-1]}"' in html
+
+    # Nothing newer than the latest row yet.
+    resp = client.get(f"/leeuwenhoek/{slug}/rows?after={first[-1]}")
+    assert resp.status_code == 200 and "<tr" not in resp.text
+
+    for path in ("/hello", "/boom", "/d"):
+        client.get(path)
+    new = [i for i in ids(type_) if i > first[-1]]
+    assert new
+    html = client.get(f"/leeuwenhoek/{slug}/rows?after={first[-1]}").text
+    assert html.count('class="lw-row"') == len(new)
+    assert all(f'data-id="{i}"' in html for i in new)
+    assert f'data-id="{first[-1]}"' not in html
+    # Newest first, so the client can insert them above the current rows in order.
+    assert html.index(f'data-id="{new[-1]}"') <= html.index(f'data-id="{new[0]}"')
+
+
+def test_rows_endpoint_filters_and_errors(populated, client, lw, app):
+    html = client.get("/leeuwenhoek/requests/rows?tag=status:500").text
+    assert html.count('class="lw-row"') == 1 and "/boom" in html
+    assert "<tr" not in client.get("/leeuwenhoek/requests/rows?q=nothing-matches").text
+    assert client.get("/leeuwenhoek/nope/rows").status_code == 404
+    app.debug = False
+    assert client.get("/leeuwenhoek/requests/rows").status_code == 403
+
+
+def test_listing_shares_rows_and_configures_polling(populated, client, lw):
+    html = client.get("/leeuwenhoek/requests?tag=status:500").text
+    assert 'data-lw-poll="4' in html
+    assert 'data-lw-status-url="/leeuwenhoek/api/status"' in html
+    assert 'data-rows-url="/leeuwenhoek/requests/rows?tag=status:500"' in html
+    assert 'data-count="request"' in html and 'data-count="batches"' in html
+    for e in entries(lw, "request"):
+        assert f'data-id="{e.id}"' in html or e.content["status"] != 500
+    # The empty state still has a (hidden) table for new rows.
+    html = client.get("/leeuwenhoek/dumps").text
+    assert 'id="lw-listing"' in html and "Nothing here yet." in html
+
+
+def test_no_rows_polling_on_older_pages(app, engine):
+    from leeuwenhoek import Leeuwenhoek
+
+    app.config["LEEUWENHOEK_PAGE_SIZE"] = 2
+    ext = Leeuwenhoek(app, engine=engine)
+    app.add_url_rule("/x", "x", lambda: "ok")
+    client = app.test_client()
+    for _ in range(5):
+        client.get("/x")
+    newest = client.get("/leeuwenhoek/requests").text
+    assert "data-rows-url" in newest
+    page = ext.storage.page("request", limit=2)
+    older = client.get(f"/leeuwenhoek/requests?before={page.older}").text
+    assert "data-rows-url" not in older
+    assert "data-lw-poll" in older  # the menu counters still refresh
+    ext.close()
+
+
+def test_no_polling_when_disabled(app, engine):
+    from leeuwenhoek import Leeuwenhoek
+
+    app.config["LEEUWENHOEK_POLL_SECONDS"] = 0
+    ext = Leeuwenhoek(app, engine=engine)
+    html = app.test_client().get("/leeuwenhoek/requests").text
+    assert "data-lw-poll" not in html and "data-rows-url" not in html
+    assert 'id="lw-listing"' in html
+    ext.close()
+
+
+def test_poll_seconds_from_env(monkeypatch, app, engine):
+    from leeuwenhoek import Leeuwenhoek
+
+    monkeypatch.setenv("LEEUWENHOEK_POLL_SECONDS", "0")
+    ext = Leeuwenhoek(app, engine=engine)
+    assert ext.config.poll_seconds == 0
+    assert "data-lw-poll" not in app.test_client().get("/leeuwenhoek/requests").text
+    ext.close()
+
+
+def test_polling_script(client):
+    js = client.get("/leeuwenhoek/static/leeuwenhoek/leeuwenhoek.js").text
+    assert "document.body.dataset.lwPoll" in js
+    assert "document.visibilityState" in js
+    assert "insertBefore" in js
+
+
 def test_static_and_no_template_collision(app, client):
     app.add_url_rule("/", "index", lambda: "mi index")
     assert client.get("/").text == "mi index"

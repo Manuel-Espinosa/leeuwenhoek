@@ -1,5 +1,5 @@
 {% extends "leeuwenhoek/base.html" %}
-{% from "leeuwenhoek/_macros.html" import entry_table, pagination, time_ago, tags with context %}
+{% from "leeuwenhoek/_macros.html" import pagination with context %}
 {% block title %}{{ title }} · Leeuwenhoek{% endblock %}
 {% block content %}
   <div class="level">
@@ -15,27 +15,20 @@
     </div>
   </div>
 
-  {% if not entries %}
-    <div class="notification">Nothing here yet.</div>
-  {% elif entry_type %}
-    {{ entry_table(entries, entry_type) }}
-  {% else %}
-    {# Batches: root entries of any type #}
-    <div class="table-container">
-      <table class="table is-fullwidth is-hoverable is-narrow">
-        <thead><tr><th>Type</th><th>Summary</th><th>When</th></tr></thead>
-        <tbody>
-        {% for e in entries %}
-          {% import "leeuwenhoek/entries/" ~ e.type ~ ".html" as t with context %}
-          <tr class="lw-row" data-href="{{ url_for('leeuwenhoek.batch', batch_id=e.batch_id) }}">
-            <td><span class="tag">{{ e.type }}</span></td>
-            <td>{{ t.summary(e) }}</td>
-            <td>{{ time_ago(e.created_at) }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% endif %}
+  {#- The table is rendered even while empty (hidden) so live polling has somewhere to put new
+      rows. `rows_url` is only set when polling is on and this is the newest page. #}
+  <div class="notification" id="lw-empty"{% if entries %} hidden{% endif %}>Nothing here yet.</div>
+  <div class="table-container"{% if not entries %} hidden{% endif %}>
+    <table class="table is-fullwidth is-hoverable is-narrow">
+      <thead><tr>
+        {%- if entry_type -%}
+          {% import "leeuwenhoek/entries/" ~ entry_type ~ ".html" as t with context %}{{ t.head() }}
+        {%- else -%}
+          <th>Type</th><th>Summary</th><th>When</th>
+        {%- endif -%}
+      </tr></thead>
+      <tbody id="lw-listing"{% if rows_url %} data-rows-url="{{ rows_url }}"{% endif %}>{% include "leeuwenhoek/_rows.html" %}</tbody>
+    </table>
+  </div>
   {{ pagination(older_url, newer_url) }}
 {% endblock %}
