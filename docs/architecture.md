@@ -77,6 +77,8 @@ Pagination is by cursor (`before=<id>` / `after=<id>`), never by offset.
 
 A watcher subclasses `watchers.base.Watcher`, declares `name`, `entry_type` and `label`, and implements `register(app)` and `unregister()`. `register` attaches hooks, and the watcher calls `self.record(content, ...)` when something happens. `AVAILABLE` in `watchers/__init__.py` maps names to classes. The panel shows a section for each active watcher whose entry type has a URL slug in `blueprint.SLUGS`.
 
+A watcher for an optional library declares it in `requires` (a module name such as `"flask_mail"`, or a tuple of them) and imports it inside `register`, never at module level, so `watchers/__init__.py` still loads without it. `Watcher.available()` checks the requirements with `importlib.util.find_spec`, and `Watcher.missing()` lists the ones not installed. When `LEEUWENHOEK_WATCHERS` is not set, `default_watchers()` enables every watcher in `AVAILABLE` that is available. A configured watcher whose requirement is missing is skipped with a warning.
+
 Planned watchers and their hooks are described in the [issues](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues?q=label%3Awatcher).
 
 ## Performance

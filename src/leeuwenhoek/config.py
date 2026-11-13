@@ -12,12 +12,10 @@ from sqlalchemy.engine import URL
 
 PREFIX = "LEEUWENHOEK_"
 
-WATCHERS = ["request", "exception", "query", "log", "dump"]
-
 DEFAULTS: dict[str, Any] = {
     "ENABLED": None,  # None -> app.debug
     "URL_PREFIX": "/leeuwenhoek",
-    "WATCHERS": WATCHERS,
+    "WATCHERS": None,  # None -> every watcher whose library is installed
     "IGNORE_PATHS": ["/static*", "/favicon.ico", "/health*"],
     "HIDDEN_HEADERS": ["authorization", "cookie", "x-api-key"],
     "HIDDEN_PARAMS": ["password", "password_confirmation", "token", "secret"],
@@ -60,7 +58,7 @@ def _coerce(key: str, default: Any, raw: str) -> Any:
         return int(raw)
     if isinstance(default, float):
         return float(raw)
-    if isinstance(default, (list, dict)):
+    if key == "WATCHERS" or isinstance(default, (list, dict)):
         try:
             return json.loads(raw)
         except ValueError:

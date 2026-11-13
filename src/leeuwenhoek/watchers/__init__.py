@@ -10,4 +10,10 @@ AVAILABLE: dict[str, type[Watcher]] = {
     w.name: w for w in (RequestWatcher, DumpWatcher, ExceptionWatcher, LogWatcher, QueryWatcher)
 }
 
-__all__ = ["AVAILABLE", "Watcher"]
+
+def default_watchers() -> list[str]:
+    """Every watcher whose required modules are installed."""
+    return [name for name, cls in AVAILABLE.items() if cls.available()]
+
+
+__all__ = ["AVAILABLE", "Watcher", "default_watchers"]
