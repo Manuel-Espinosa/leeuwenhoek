@@ -90,6 +90,15 @@ def test_writer_drops_when_full_and_flush_times_out():
     assert writer.flush(timeout=5) is True
 
 
+def test_writer_with_prune_disabled_still_writes():
+    # AUTO_PRUNE=False passes a prune callback with interval 0: the thread must not crash.
+    saved = []
+    writer = Writer(saved.append, prune=lambda: None, prune_interval=0)
+    writer.put([Entry(type="log", content={}, batch_id="b")])
+    assert writer.flush(timeout=2) is True
+    assert len(saved) == 1
+
+
 def test_writer_auto_prune():
     calls = []
     writer = Writer(lambda e: None, prune=lambda: calls.append(1), prune_interval=0.2)
