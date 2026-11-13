@@ -1,4 +1,4 @@
-// Filas clicables y tabs, sin dependencias.
+// Clickable rows and tabs, no dependencies.
 document.addEventListener("click", (event) => {
   const tab = event.target.closest("[data-tab]");
   if (tab) {
