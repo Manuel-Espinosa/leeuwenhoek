@@ -111,6 +111,28 @@ def test_prune_and_clear(populated, lw):
     assert entries(lw) == []
 
 
+def test_theme_toggle_and_head_script(client):
+    html = client.get("/leeuwenhoek/requests").text
+    head = html.split("</head>", 1)[0]
+    # The theme is applied in <head>, before the stylesheets, to avoid a flash on load.
+    assert '<script id="lw-theme-init">' in head
+    assert 'localStorage.getItem("leeuwenhoek-theme")' in head
+    assert head.index("lw-theme-init") < head.index("bulma.min.css")
+    assert 'id="lw-theme-toggle"' in html.split("</head>", 1)[1]
+
+
+def test_theme_script_uses_host_csp_nonce(app, client):
+    app.jinja_env.globals["csp_nonce"] = lambda: "abc123"
+    html = client.get("/leeuwenhoek/requests").text
+    assert '<script id="lw-theme-init" nonce="abc123">' in html
+
+
+def test_bundled_bulma_supports_data_theme(client):
+    css = client.get("/leeuwenhoek/static/leeuwenhoek/bulma.min.css").text
+    assert "bulma.io v1." in css
+    assert "[data-theme=dark]" in css and "[data-theme=light]" in css
+
+
 def test_static_and_no_template_collision(app, client):
     app.add_url_rule("/", "index", lambda: "mi index")
     assert client.get("/").text == "mi index"

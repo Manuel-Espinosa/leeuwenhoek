@@ -1,16 +1,43 @@
+/* Colours for the custom highlighting, in both themes. Light by default; dark when the user
+   picks it (data-theme="dark", set by the navbar toggle) or when the system prefers dark and
+   no explicit light choice was made. This mirrors how Bulma itself switches themes. */
+:root {
+  --lw-str: #2f7d32;
+  --lw-num: #1565c0;
+  --lw-kw: #c2185b;
+  --lw-ln: #999;
+  --lw-current-bg: rgba(255, 56, 96, .18);
+}
+[data-theme=dark] {
+  --lw-str: #81c784;
+  --lw-num: #64b5f6;
+  --lw-kw: #f48fb1;
+  --lw-ln: #8a8a8a;
+  --lw-current-bg: rgba(255, 56, 96, .30);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --lw-str: #81c784;
+    --lw-num: #64b5f6;
+    --lw-kw: #f48fb1;
+    --lw-ln: #8a8a8a;
+    --lw-current-bg: rgba(255, 56, 96, .30);
+  }
+}
+
 .lw-row { cursor: pointer; }
 .lw-tree { margin-left: .25rem; }
 .lw-tree ul { margin-left: 1.25rem; border-left: 1px solid var(--bulma-border, #dbdbdb); padding-left: .75rem; list-style: none; }
 .lw-tree summary { cursor: pointer; color: var(--bulma-text-weak, #7a7a7a); }
 .lw-key { font-weight: 600; }
-.lw-str { color: #2f7d32; white-space: pre-wrap; word-break: break-word; }
-.lw-num { color: #1565c0; }
+.lw-str { color: var(--lw-str); white-space: pre-wrap; word-break: break-word; }
+.lw-num { color: var(--lw-num); }
 pre.lw-str { padding: .5rem .75rem; }
-.lw-sql .lw-kw { color: #c2185b; font-weight: 600; }
+.lw-sql .lw-kw { color: var(--lw-kw); font-weight: 600; }
 .lw-frame { margin-bottom: .5rem; }
 .lw-snippet { padding: .5rem 0; }
-.lw-snippet span.lw-current { background: rgba(255, 56, 96, .18); display: block; }
-.lw-snippet .lw-ln { display: inline-block; width: 3.5em; text-align: right; color: #999; margin-right: .75em; user-select: none; }
+.lw-snippet span.lw-current { background: var(--lw-current-bg); display: block; }
+.lw-snippet .lw-ln { display: inline-block; width: 3.5em; text-align: right; color: var(--lw-ln); margin-right: .75em; user-select: none; }
 .menu-list a .tag { margin-left: .5rem; }
 /* Keep the count badge readable on the highlighted (blue) menu item. */
 .menu-list a.is-active .tag { background: rgba(255, 255, 255, .25); color: #fff; }
