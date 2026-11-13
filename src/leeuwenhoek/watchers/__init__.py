@@ -11,6 +11,7 @@ from .model import ModelWatcher
 from .query import QueryWatcher
 from .redis_client import RedisWatcher
 from .request import RequestWatcher
+from .schedule import ScheduleWatcher
 from .template import TemplateWatcher
 
 #: in the order they appear in the menu
@@ -30,6 +31,7 @@ AVAILABLE: dict[str, type[Watcher]] = {
         ModelWatcher,
         EventWatcher,
         RedisWatcher,
+        ScheduleWatcher,
     )
 }
 
