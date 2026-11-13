@@ -47,9 +47,10 @@ SLUGS = {
     "command": "commands",
     "http": "http",
     "cache": "cache",
+    "job": "jobs",
 }
 #: entry types that start a batch, shown on top of the batch page
-MAIN_TYPES = ("request", "command")
+MAIN_TYPES = ("request", "command", "job")
 TYPES = {slug: type_ for type_, slug in SLUGS.items()}
 BATCHES = "batches"
 
@@ -217,7 +218,8 @@ def _query(slug: str, args: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str
     """Storage arguments of a listing, and the resolved exception families (for the badges)."""
     query: dict[str, Any] = {
         "type": None if slug == BATCHES else TYPES[slug],
-        "root_only": slug == BATCHES,
+        # Jobs: the runs only; the entries recording a dispatch are shown in the dispatching batch
+        "root_only": slug in (BATCHES, SLUGS["job"]),
         "tag": args.get("tag"),
         "q": args.get("q"),
     }
@@ -299,7 +301,8 @@ def batch(batch_id: str) -> str:
     entries = lw().storage.batch(batch_id)
     if not entries:
         abort(404)
-    main = next((e for e in entries if e.type in MAIN_TYPES), None)
+    # The root entry: a request's batch may also hold ``job`` entries for the tasks it dispatched.
+    main = next((e for e in entries if e.is_root and e.type in MAIN_TYPES), None)
     return render_template(
         "leeuwenhoek/batch.html",
         batch_id=batch_id,

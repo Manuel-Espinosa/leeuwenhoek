@@ -46,15 +46,18 @@ class Leeuwenhoek:
         self._taggers: list[Tagger] = []
         self._writer: Writer | None = None
         self._recording = (True, 0.0)
+        #: Celery app whose tasks the celery watcher records; ``None`` means every Celery app
+        self.celery: Any = None
         if app is not None:
             self.init_app(app, **kwargs)
 
     # ------------------------------------------------------------------ setup
 
-    def init_app(self, app: Flask, engine: Any = None) -> None:
+    def init_app(self, app: Flask, engine: Any = None, celery: Any = None) -> None:
         from .blueprint import bp
 
         self.app = app
+        self.celery = celery
         self.config = Config(app)
         cfg = self.config
         if cfg.storage == "memory":

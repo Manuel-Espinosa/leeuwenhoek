@@ -28,6 +28,8 @@ Add the `cache` extra (`flask-leeuwenhoek[cache]`) to record [Flask-Caching](htt
 
 Add the `mail` extra (`flask-leeuwenhoek[mail] @ git+...`) to record emails sent with [Flask-Mail](https://flask-mail.readthedocs.io/). As with every integration watcher, it turns on by itself when Flask-Mail is installed.
 
+Add the `celery` extra (`flask-leeuwenhoek[celery]`) to record [Celery](https://docs.celeryq.dev/) tasks, see [Celery jobs](#celery-jobs). The watcher turns on by itself when Celery is installed.
+
 Add the `http` extra to install [requests](https://requests.readthedocs.io/) and [HTTPX](https://www.python-httpx.org/) for the outgoing HTTP watcher. Either one is enough, and the watcher turns on by itself if your app already uses one of them.
 
 ## Quickstart
@@ -79,12 +81,13 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `mail` | Emails sent with Flask-Mail (its `email_dispatched` signal, which also fires when sending is suppressed with `MAIL_SUPPRESS_SEND` or `TESTING`): sender, to/cc/bcc, reply-to, subject, extra headers (redacted with `LEEUWENHOEK_HIDDEN_HEADERS`), HTML and text bodies (truncated to `LEEUWENHOEK_MAX_BODY_KB`) and attachment names and types, never their content. The panel previews the HTML body in a fully sandboxed `<iframe>` (no scripts, no same-origin). Needs the `mail` extra. |
 | `template` | Each Jinja template rendered with `render_template`, `render_template_string` or `stream_template`: name, file, context keys (never their values, and without Flask's own `g`, `request` and `session`) and render duration. Templates pulled in with `{% extends %}` or `{% include %}` are part of the top-level render, not separate entries. Leeuwenhoek's own templates are never recorded. |
 | `command` | `flask` CLI commands of `app.cli`: full name (`db seed` for subcommands), arguments, options, exit code and duration. Each command gets its own batch, see [CLI commands](#cli-commands). |
+| `job` | Celery task runs: task name and id, args and kwargs, queue, attempt, state (`SUCCESS`, `FAILURE`, `RETRY`), duration, result, exception and retry reason. Each run gets its own batch, linked to the request that dispatched it, see [Celery jobs](#celery-jobs). |
 | `http` | Outgoing HTTP calls made with [requests](https://requests.readthedocs.io/) or [HTTPX](https://www.python-httpx.org/) (sync and async clients): method, URL, request headers, payload, status, response headers, response body (JSON/text only), duration, redirects, and the error if the call raised. Enabled when either library is installed. |
 | `cache` | Flask-Caching operations (`get`, `get_many`, `get_dict`, `has`, `set`, `add`, `set_many`, `delete`, `delete_many`, `unlink`, `clear`), including the ones made by `@cache.cached` and `@cache.memoize` (with Flask-Caching 2.5 or newer; older versions, the last ones for Python 3.10, make the decorators talk to the backend directly and only the direct calls are recorded): keys, hit or miss for reads, TTL for writes, backend and duration. Values are stored only with `LEEUWENHOEK_CACHE_VALUES`. The Cache card of a request shows its hit and miss counts. |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`, jobs `task:<name>` and `state:<STATE>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
 
 ### N+1 queries
 
@@ -127,6 +130,24 @@ def seed(count, token):
 
 Like requests, commands are only recorded while Leeuwenhoek is enabled: run them with `flask --debug ...` or set `LEEUWENHOEK_ENABLED`. Skip some with `LEEUWENHOEK_IGNORE_COMMANDS`: an entry matches a command by its full name, by a group prefix (`"db"` skips `db upgrade`) or as a glob (`"seed-*"`). Nothing that happens inside an ignored command is recorded. `flask leeuwenhoek ...`, `flask run` and `flask shell` never get a command entry or a batch: each request served by `flask run` gets its own batch as usual, and a shell session, which can last for hours and isn't one unit of work, stores what you run in it as standalone entries.
 
+### Celery jobs
+
+Pass your Celery app to `init_app` (or to the constructor):
+
+```python
+celery = Celery(__name__, broker="redis://localhost:6379/0")
+lw = Leeuwenhoek()
+lw.init_app(app, celery=celery)
+```
+
+Every run of one of its tasks gets its own batch (`kind="job"`), so the queries, logs and exceptions of the task are grouped under it, and the batch page shows the job on top. Without `celery=`, the tasks of every Celery app in the process are recorded (Celery's signals are global). The worker must create the Flask app and call `init_app` too (the usual Flask + Celery setup does), and Leeuwenhoek must be enabled there (`LEEUWENHOEK_ENABLED`).
+
+When a task is dispatched while a request (or a command, or another job) is being recorded, the id of that batch travels in the message headers, and the job's entries get it as `parent_batch_id`. The dispatching batch also gets a `job` entry with the status `dispatched`, shown in the Jobs card of the request detail with a **View job** link to the job's batch; the job's page links back with **Dispatched by**. A retry (`self.retry()`) is a new run with its own batch and the same parent. The **Jobs** listing shows the runs only.
+
+In eager mode (`task_always_eager`, or `task.apply()`), Celery doesn't publish a message, so there are no headers: the task runs inside the batch that dispatched it, and that batch becomes its parent. Tasks dispatched outside any batch (a script, `celery beat`) get a job batch without a parent.
+
+Args and kwargs are redacted with `LEEUWENHOEK_HIDDEN_PARAMS` (by key, at any depth) and cut at `LEEUWENHOEK_MAX_BODY_KB`, like the result. `content["args_redacted"]` is `false` only when the stored `args` and `kwargs` are exactly the ones the task received (nothing masked, truncated or unserializable), so the job could be dispatched again with them.
+
 ### Peak memory
 
 Set `LEEUWENHOEK_TRACK_MEMORY=true` to record how much memory each request allocated at its peak. It is shown as **Peak memory** in the request detail and stored as `memory_peak_kb` in the entry.
@@ -139,10 +160,10 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`, `/jobs`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
-| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request or command on top |
+| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request, command or job on top |
 | `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception, with a Resolve / Reopen button |
 | `POST /leeuwenhoek/exceptions/family/<hash>/resolve` (`/reopen`) | Marks the family as resolved (or open again); needs the CSRF token |
 | `/leeuwenhoek/<type>/rows?after=<id>` | HTML `<tr>` rows of the entries newer than `<id>`, with the same filters as the listing (used by live polling) |

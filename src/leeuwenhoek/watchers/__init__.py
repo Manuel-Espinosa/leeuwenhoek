@@ -1,5 +1,6 @@
 from .base import Watcher
 from .cache import CacheWatcher
+from .celery import CeleryWatcher
 from .command import CommandWatcher
 from .dump import DumpWatcher
 from .exception import ExceptionWatcher
@@ -24,6 +25,7 @@ AVAILABLE: dict[str, type[Watcher]] = {
         CommandWatcher,
         HttpClientWatcher,
         CacheWatcher,
+        CeleryWatcher,
     )
 }
 
