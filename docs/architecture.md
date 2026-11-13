@@ -85,4 +85,27 @@ Planned watchers and their hooks are described in the [issues](https://github.co
 - Asynchronous writes, with a bounded queue that drops batches instead of blocking.
 - Payloads truncated to `MAX_BODY_KB`, at most `MAX_ENTRIES_PER_BATCH` entries per batch, and the query stack walk limited to a fixed number of frames.
 - SQLite runs in WAL mode so concurrent writes don't block reads.
-- Target overhead: under 5 ms per request in development. A benchmark is tracked in [#14](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues/14).
+- Target overhead: under 5 ms per request in development.
+
+### Benchmark
+
+[`benchmarks/request_overhead.py`](../benchmarks/request_overhead.py) measures the overhead with the Flask test client. Each request runs 3 SQLAlchemy queries against a SQLite file and writes one log line. The same app is measured without Leeuwenhoek (`baseline`), with the background writer (`async`, the default) and with `LEEUWENHOEK_ASYNC_WRITE=False` (`sync`). Leeuwenhoek stores into a SQLite file, as it does by default in development, with all default watchers enabled and automatic pruning off. Each run has 200 warm-up requests, the three modes are interleaved over 3 rounds, and the script checks that the entries were actually stored.
+
+Results on an AMD Ryzen 7 7445HS (12 logical cores), Linux 7.0, CPython 3.13.15, Flask 3.1.3, SQLAlchemy 2.1.6, SQLite 3.53.1, 6000 measured requests per mode:
+
+| Mode | p50 (ms) | p95 (ms) | Mean (ms) | Overhead p50 (ms) | Overhead p95 (ms) |
+|---|---:|---:|---:|---:|---:|
+| baseline | 0.270 | 0.512 | 0.310 | — | — |
+| async | 0.989 | 1.830 | 1.108 | +0.719 | +1.318 |
+| sync | 0.913 | 1.502 | 1.006 | +0.643 | +0.990 |
+
+The overhead is about 0.7 ms at p50 and 1.3 ms at p95, well under the 5 ms target. Most of it is building the entries (request details, query call sites, redaction, JSON) rather than writing them. With a local SQLite file the synchronous insert is cheap, so `sync` comes out slightly faster than `async` here: the background thread competes with the request for the GIL. The async writer pays off when the storage is slow or remote (Postgres over the network), because the request never waits for it.
+
+To reproduce:
+
+```bash
+uv run python benchmarks/request_overhead.py
+uv run python benchmarks/request_overhead.py --iterations 5000 --warmup 500 --rounds 5 --queries 10
+```
+
+Absolute numbers depend on the machine. Compare the overhead columns rather than the latencies.

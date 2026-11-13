@@ -82,7 +82,9 @@ class Writer:
 
     def _run(self) -> None:
         while True:
-            timeout = max(self._next_prune - time.monotonic(), 0.1) if self._prune else None
+            # No pruning scheduled (``inf``): block without a timeout, which must be finite.
+            pruning = self._next_prune != float("inf")
+            timeout = max(self._next_prune - time.monotonic(), 0.1) if pruning else None
             try:
                 entries = self._queue.get(timeout=timeout)
             except queue.Empty:
