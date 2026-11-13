@@ -41,6 +41,7 @@ SLUGS = {
     "exception": "exceptions",
     "log": "logs",
     "dump": "dumps",
+    "http": "http",
 }
 TYPES = {slug: type_ for type_, slug in SLUGS.items()}
 BATCHES = "batches"
@@ -347,10 +348,11 @@ def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, An
             continue
         groups.setdefault(entry.type, []).append(entry)
     order = list(SLUGS)
+    labels = {w.entry_type: w.label for w in lw().watchers.values()}
     return [
         {
             "type": type_,
-            "label": type_.capitalize() + ("ies" if type_ == "query" else "s"),
+            "label": labels.get(type_) or type_.capitalize() + ("ies" if type_ == "query" else "s"),
             "entries": items,
             "count": len(items),
             "total_ms": sum(i.content.get("duration_ms") or 0 for i in items) or None,

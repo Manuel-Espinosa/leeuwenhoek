@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from fnmatch import fnmatch
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from .models import Entry, dumps
 
@@ -35,6 +36,24 @@ def redact(value: Any, hidden: Iterable[str]) -> Any:
         return item
 
     return walk(value)
+
+
+def redact_url(url: str, hidden: Iterable[str]) -> str:
+    """Mask sensitive query parameters and the userinfo password of a URL."""
+    parts = urlsplit(url)
+    netloc = parts.netloc
+    if parts.password is not None:
+        userinfo, _, host = netloc.rpartition("@")
+        netloc = f"{userinfo.partition(':')[0]}:{MASK}@{host}"
+    query = parts.query
+    if query:
+        hidden_lower = {h.lower() for h in hidden}
+        pairs = parse_qsl(query, keep_blank_values=True)
+        if any(k.lower() in hidden_lower for k, _ in pairs):
+            query = urlencode(
+                [(k, MASK if k.lower() in hidden_lower else v) for k, v in pairs], safe="*"
+            )
+    return urlunsplit(parts._replace(netloc=netloc, query=query))
 
 
 def limit_payload(value: Any, max_kb: int) -> Any:

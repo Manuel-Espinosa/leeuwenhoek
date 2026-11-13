@@ -24,6 +24,8 @@ pip install git+https://github.com/Manuel-Espinosa/flask-leeuwenhoek
 
 Add the `login` extra (`flask-leeuwenhoek[login] @ git+...`) to record the current [Flask-Login](https://flask-login.readthedocs.io/) user on each request. If Flask-Login is already installed, this happens automatically.
 
+Add the `http` extra to install [requests](https://requests.readthedocs.io/) and [HTTPX](https://www.python-httpx.org/) for the outgoing HTTP watcher. Either one is enough, and the watcher turns on by itself if your app already uses one of them.
+
 ## Quickstart
 
 ```python
@@ -70,10 +72,15 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `exception` | Class, message, full traceback with a code snippet for each frame. Repeated exceptions are grouped into **families** (same class, file and line). Also captures exceptions turned into 5xx responses by your own error handlers, and uncaught exceptions in scripts, CLI commands and threads (through `sys.excepthook` and `threading.excepthook`, which are chained and restored by `lw.close()`). |
 | `log` | Level, message, logger name, `extra` fields and `exc_info`, from a handler on the root logger |
 | `dump` | Whatever you pass to `dump()`, with the file and line it was called from |
+| `http` | Outgoing HTTP calls made with [requests](https://requests.readthedocs.io/) or [HTTPX](https://www.python-httpx.org/) (sync and async clients): method, URL, request headers, payload, status, response headers, response body (JSON/text only), duration, redirects, and the error if the call raised. Enabled when either library is installed. |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
 Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow.
+
+### Outgoing HTTP
+
+Every call made through `requests` or `httpx` (including `httpx.AsyncClient`) is recorded, whichever client or session made it, and appears in the **HTTP client** section and as a card in the detail of the request that made it. Calls made outside a request are stored as standalone entries. The URL's query parameters and the payload and JSON response keys listed in `LEEUWENHOEK_HIDDEN_PARAMS` are masked, as are the headers in `LEEUWENHOEK_HIDDEN_HEADERS`; bodies are cut at `LEEUWENHOEK_MAX_BODY_KB`. Only JSON and text response bodies are kept, and never for streamed responses (`stream=True`), which are left unread. A `requests` redirect chain is one entry with the final URL and the number of redirects. Entries are tagged `host:<hostname>`, and calls that raised are tagged `failed`.
 
 ### `dump()`
 
@@ -99,7 +106,7 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`), newest first, with search (`?q=`) and tag filter (`?tag=`) |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/http`), newest first, with search (`?q=`) and tag filter (`?tag=`) |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
 | `/leeuwenhoek/batch/<batch_id>` | A whole batch |
