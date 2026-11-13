@@ -1,5 +1,6 @@
 from .base import Watcher
 from .cache import CacheWatcher
+from .celery import CeleryWatcher
 from .command import CommandWatcher
 from .dump import DumpWatcher
 from .event import EventWatcher
@@ -34,6 +35,7 @@ AVAILABLE: dict[str, type[Watcher]] = {
         RedisWatcher,
         ScheduleWatcher,
         RQWatcher,
+        CeleryWatcher,
     )
 }
 

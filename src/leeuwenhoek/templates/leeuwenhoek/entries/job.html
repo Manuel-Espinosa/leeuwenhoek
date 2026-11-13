@@ -1,0 +1,55 @@
+{% from "leeuwenhoek/_macros.html" import duration, time_ago, json_tree %}
+{#- A job entry is either a run (root of its own batch) or, with `dispatched`, the dispatch of a
+    task recorded in the batch that dispatched it, linking to the run's batch. -#}
+{% macro state_tag(c) -%}
+  {%- set cls = {'SUCCESS': 'is-success', 'FAILURE': 'is-danger', 'RETRY': 'is-warning', 'DISPATCHED': 'is-info'}.get(c.status, '') -%}
+  <span class="tag {{ cls }}" {% if c.exception %}title="{{ c.exception.message }}"{% endif %}>{{ c.status | lower }}</span>
+{%- endmacro %}
+{% macro job_link(c) -%}
+  {%- if c.dispatched and c.job_batch_id %} <a class="is-size-7" href="{{ url_for('leeuwenhoek.batch', batch_id=c.job_batch_id) }}">View job</a>{% endif -%}
+{%- endmacro %}
+{% macro head() %}<th>Task</th><th>Status</th><th>Attempt</th><th>Queue</th><th>Duration</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  {% set c = e.content %}
+  <td><code>{{ c.name }}</code></td>
+  <td>{{ state_tag(c) }}{{ job_link(c) }}</td>
+  <td>{{ c.get('attempt') or '—' }}</td>
+  <td>{{ c.queue or '—' }}</td>
+  <td>{{ duration(c.get('duration_ms')) }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}<code>{{ e.content.name }}</code> {{ state_tag(e.content) }} {{ duration(e.content.get('duration_ms')) }}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <div class="level">
+    <div class="level-item has-text-centered"><div><p class="heading">Task</p><p class="title is-5"><code>{{ c.name }}</code></p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Status</p><p class="title is-5">{{ state_tag(c) }}</p></div></div>
+    {% if not c.dispatched %}
+    <div class="level-item has-text-centered"><div><p class="heading">Attempt</p><p class="title is-5">{{ c.attempt }}{% if c.max_retries is not none %} / {{ c.max_retries + 1 }}{% endif %}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Duration</p><p class="title is-5">{{ c.duration_ms | lw_duration }}</p></div></div>
+    {% endif %}
+    <div class="level-item has-text-centered"><div><p class="heading">Queue</p><p class="title is-5">{{ c.queue or '—' }}</p></div></div>
+  </div>
+  <p class="mb-3 is-size-7">Task id <code>{{ c.task_id }}</code>
+    {%- if c.eager %} · <span class="tag is-light">eager</span>{% endif %}
+    {%- if c.worker %} · worker <code>{{ c.worker }}</code>{% endif %}
+    {%- if c.eta %} · ETA {{ c.eta }}{% endif %}
+    {%- if c.dispatched and c.job_batch_id %} · <a href="{{ url_for('leeuwenhoek.batch', batch_id=c.job_batch_id) }}">View job</a>{% endif %}
+    {%- if e.parent_batch_id and not c.dispatched %} · <a href="{{ url_for('leeuwenhoek.batch', batch_id=e.parent_batch_id) }}">Dispatched by</a>{% endif %}</p>
+  {% if c.exception %}
+  <div class="notification is-danger is-light"><strong>{{ c.exception['class'] }}</strong>: {{ c.exception.message }}</div>
+  {% endif %}
+  {% if c.retry_reason %}
+  <div class="notification is-warning is-light">Retried: {{ c.retry_reason }}</div>
+  {% endif %}
+  <div class="lw-tabs">
+    <div class="tabs"><ul>
+      <li class="is-active"><a data-tab="args">Arguments</a></li>
+      <li><a data-tab="kwargs">Keyword arguments</a></li>
+      {% if not c.dispatched %}<li><a data-tab="result">Result</a></li>{% endif %}
+    </ul></div>
+    <div data-panel="args">{{ json_tree(c.args, true) }}</div>
+    <div data-panel="kwargs" hidden>{{ json_tree(c.kwargs, true) }}</div>
+    {% if not c.dispatched %}<div data-panel="result" hidden>{{ json_tree(c.result, true) if c.result is not none else 'No result' }}</div>{% endif %}
+  </div>
+{% endmacro %}

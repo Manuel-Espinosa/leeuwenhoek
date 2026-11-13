@@ -52,9 +52,10 @@ SLUGS = {
     "redis": "redis",
     "schedule": "schedule",
     "rq": "rq",
+    "job": "jobs",
 }
 #: entry types that start a batch, shown on top of the batch page
-MAIN_TYPES = ("request", "command", "schedule", "rq")
+MAIN_TYPES = ("request", "command", "schedule", "rq", "job")
 TYPES = {slug: type_ for type_, slug in SLUGS.items()}
 BATCHES = "batches"
 
@@ -222,7 +223,8 @@ def _query(slug: str, args: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str
     """Storage arguments of a listing, and the resolved exception families (for the badges)."""
     query: dict[str, Any] = {
         "type": None if slug == BATCHES else TYPES[slug],
-        "root_only": slug == BATCHES,
+        # Jobs: the runs only; the entries recording a dispatch are shown in the dispatching batch
+        "root_only": slug in (BATCHES, SLUGS["job"]),
         "tag": args.get("tag"),
         "q": args.get("q"),
     }
