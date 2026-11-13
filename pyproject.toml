@@ -15,6 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 login = ["flask-login>=0.6"]
+mail = ["flask-mail>=0.9"]
 
 [project.entry-points."flask.commands"]
 leeuwenhoek = "leeuwenhoek.cli:cli"
@@ -33,6 +34,7 @@ dev = [
     "ruff",
     "mypy",
     "psycopg[binary]>=3.3.6",
+    "flask-mail>=0.10.0",
 ]
 
 [tool.ruff]

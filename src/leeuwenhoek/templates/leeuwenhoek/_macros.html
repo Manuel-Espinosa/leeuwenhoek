@@ -87,3 +87,17 @@
     </table>
   </div>
 {%- endmacro %}
+
+{# Resolve / Reopen button of an exception family (POST with the panel's CSRF token). Import
+   `with context` so `csrf_token` is available. #}
+{% macro resolve_button(family_hash, resolved_at, small=false) -%}
+  {% set action = 'reopen' if resolved_at else 'resolve' %}
+  <form method="post" class="lw-inline-form" action="{{ url_for('leeuwenhoek.' ~ action ~ '_family', hash=family_hash) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {%- if resolved_at %}
+      <button class="button {{ 'is-small' if small }} is-warning is-light" type="submit" title="Resolved {{ resolved_at.isoformat() }} UTC">Reopen</button>
+    {%- else %}
+      <button class="button {{ 'is-small' if small }} is-success is-light" type="submit">Resolve</button>
+    {%- endif %}
+  </form>
+{%- endmacro %}
