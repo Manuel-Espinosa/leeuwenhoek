@@ -1,11 +1,12 @@
 """Measure the per-request overhead Leeuwenhoek adds to a small Flask app.
 
 Every request runs a few SQLAlchemy queries against SQLite and writes one log line. The same
-app is measured three times with the Flask test client:
+app is measured four times with the Flask test client:
 
 - ``baseline``: without Leeuwenhoek
 - ``async``: Leeuwenhoek with the background writer (the default)
 - ``sync``: Leeuwenhoek writing each batch inside the request (``LEEUWENHOEK_ASYNC_WRITE=False``)
+- ``memory``: like ``async``, plus peak memory per request (``LEEUWENHOEK_TRACK_MEMORY=True``)
 
 Leeuwenhoek stores entries in a SQLite file, as it does by default in development.
 
@@ -35,7 +36,7 @@ from sqlalchemy import create_engine, text
 
 from leeuwenhoek import Leeuwenhoek
 
-MODES = ("baseline", "async", "sync")
+MODES = ("baseline", "async", "sync", "memory")
 
 log = logging.getLogger("bench.app")
 
@@ -58,7 +59,8 @@ def build_app(mode: str, workdir: str, queries: int) -> tuple[Flask, Callable[[]
     if mode != "baseline":
         app.config.update(
             LEEUWENHOEK_ENABLED=True,
-            LEEUWENHOEK_ASYNC_WRITE=mode == "async",
+            LEEUWENHOEK_ASYNC_WRITE=mode != "sync",
+            LEEUWENHOEK_TRACK_MEMORY=mode == "memory",
             LEEUWENHOEK_DATABASE_URI=f"sqlite:///{os.path.join(workdir, mode + '-lw.db')}",
             # Keep pruning out of the measurement.
             LEEUWENHOEK_AUTO_PRUNE=False,
@@ -87,6 +89,10 @@ def build_app(mode: str, workdir: str, queries: int) -> tuple[Flask, Callable[[]
             stored = lw.storage.counts().get("request", 0)
             if stored == 0:
                 raise RuntimeError(f"{mode}: no request entries were stored")
+            if mode == "memory":
+                last = lw.storage.list("request", limit=1)[0]
+                if "memory_peak_kb" not in last.content:
+                    raise RuntimeError(f"{mode}: the peak memory was not recorded")
             lw.close()  # removes global hooks
         engine.dispose()
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import threading
 import time
+import tracemalloc
 from importlib.util import find_spec
 from typing import Any
 
@@ -14,6 +16,49 @@ from ..tags import from_paths
 from .base import Watcher
 
 START = "leeuwenhoek.started"
+MEMORY_START = "leeuwenhoek.memory_start"
+
+
+class MemoryTracker:
+    """Per-request peak memory with ``tracemalloc``, shared by every request of the process.
+
+    ``tracemalloc`` is process-global, so tracing is reference-counted: the first request that
+    needs it starts it and the last one stops it, unless something else had started it before,
+    in which case it is left running. Each request resets the peak when it starts and reports
+    the peak above the memory traced at that moment. With concurrent requests (threads,
+    gevent) the peak includes allocations of every request in flight, and one request's reset
+    clears the peak of the others, so the numbers are only exact for one request at a time.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._active = 0
+        self._owned = False
+
+    def start(self) -> int:
+        """Start or join tracing; return the traced memory now, in bytes."""
+        with self._lock:
+            if self._active == 0:
+                self._owned = not tracemalloc.is_tracing()
+                if self._owned:
+                    tracemalloc.start()
+            self._active += 1
+            current, _ = tracemalloc.get_traced_memory()
+            tracemalloc.reset_peak()
+            return current
+
+    def stop(self, start: int) -> float:
+        """Leave tracing; return the peak above ``start``, in KB."""
+        with self._lock:
+            _, peak = tracemalloc.get_traced_memory()
+            self._active -= 1
+            if self._active == 0 and self._owned:
+                tracemalloc.stop()
+                self._owned = False
+        return round(max(peak - start, 0) / 1024, 1)
+
+
+memory_tracker = MemoryTracker()
 
 
 class RequestWatcher(Watcher):
@@ -28,6 +73,9 @@ class RequestWatcher(Watcher):
 
     def _start(self) -> None:
         request.environ[START] = time.perf_counter()
+        batch = self.lw.current()
+        if self.lw.config.track_memory and batch is not None and batch.recording:
+            request.environ[MEMORY_START] = memory_tracker.start()
 
     def _capture_response(self, response: Response) -> Response:
         batch = self.lw.current()
@@ -49,6 +97,8 @@ class RequestWatcher(Watcher):
     def _finish(self, batch: Batch, exc: BaseException | None) -> None:
         if batch.kind != "request":
             return
+        memory_start = request.environ.pop(MEMORY_START, None)
+        memory_peak_kb = memory_tracker.stop(memory_start) if memory_start is not None else None
         cfg = self.lw.config
         hidden = cfg.hidden_params
         started = request.environ.get(START)
@@ -76,6 +126,8 @@ class RequestWatcher(Watcher):
             "response_body": meta.get("response_body"),
             "duration_ms": round((time.perf_counter() - started) * 1000, 2) if started else None,
         }
+        if memory_peak_kb is not None:
+            content["memory_peak_kb"] = memory_peak_kb
         tags = []
         if request.endpoint:
             tags.append(f"endpoint:{request.endpoint}")

@@ -114,6 +114,15 @@ def lw_duration(ms: float | None) -> str:
     return f"{ms:.0f} ms" if ms >= 10 else f"{ms:.2f} ms"
 
 
+@bp.app_template_filter("lw_kb")
+def lw_kb(kb: float | None) -> str:
+    if kb is None:
+        return "—"
+    if kb >= 1024:
+        return f"{kb / 1024:.1f} MB"
+    return f"{kb:.1f} KB"
+
+
 @bp.app_template_filter("lw_timeago")
 def lw_timeago(when: datetime | None) -> str:
     if when is None:

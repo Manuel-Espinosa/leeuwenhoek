@@ -88,20 +88,30 @@ Planned watchers and their hooks are described in the [issues](https://github.co
 - Payloads truncated to `MAX_BODY_KB`, at most `MAX_ENTRIES_PER_BATCH` entries per batch, and the query stack walk limited to a fixed number of frames.
 - SQLite runs in WAL mode so concurrent writes don't block reads.
 - Target overhead: under 5 ms per request in development.
+- Peak memory (`TRACK_MEMORY`) is opt-in, because `tracemalloc` slows down every allocation.
+
+### Peak memory
+
+With `TRACK_MEMORY` on, the request watcher starts `tracemalloc` in `before_request` (only for recorded requests) and stores the peak in `content["memory_peak_kb"]` when the request entry is built. `tracemalloc` is process-global, so `watchers.request.MemoryTracker` reference-counts the requests using it: the first one starts tracing and the last one stops it. If something else had already started tracing (`python -X tracemalloc`, a profiler, a test), it is never stopped. Each request calls `tracemalloc.reset_peak()` and reports the peak above the memory traced when it started, so memory allocated earlier isn't counted. That reset also clears the peak seen by whoever else is tracing.
+
+Limitation: with concurrent requests (a threaded server, gevent), the peak covers the allocations of every request in flight, and each request's reset clears the peak of the others. The value is exact when requests run one at a time and approximate otherwise.
 
 ### Benchmark
 
-[`benchmarks/request_overhead.py`](../benchmarks/request_overhead.py) measures the overhead with the Flask test client. Each request runs 3 SQLAlchemy queries against a SQLite file and writes one log line. The same app is measured without Leeuwenhoek (`baseline`), with the background writer (`async`, the default) and with `LEEUWENHOEK_ASYNC_WRITE=False` (`sync`). Leeuwenhoek stores into a SQLite file, as it does by default in development, with all default watchers enabled and automatic pruning off. Each run has 200 warm-up requests, the three modes are interleaved over 3 rounds, and the script checks that the entries were actually stored.
+[`benchmarks/request_overhead.py`](../benchmarks/request_overhead.py) measures the overhead with the Flask test client. Each request runs 3 SQLAlchemy queries against a SQLite file and writes one log line. The same app is measured without Leeuwenhoek (`baseline`), with the background writer (`async`, the default), with `LEEUWENHOEK_ASYNC_WRITE=False` (`sync`), and with the background writer plus `LEEUWENHOEK_TRACK_MEMORY=True` (`memory`). Leeuwenhoek stores into a SQLite file, as it does by default in development, with all default watchers enabled and automatic pruning off. Each run has 200 warm-up requests, the four modes are interleaved over 3 rounds, and the script checks that the entries were actually stored.
 
 Results on an AMD Ryzen 7 7445HS (12 logical cores), Linux 7.0, CPython 3.13.15, Flask 3.1.3, SQLAlchemy 2.1.6, SQLite 3.53.1, 6000 measured requests per mode:
 
 | Mode | p50 (ms) | p95 (ms) | Mean (ms) | Overhead p50 (ms) | Overhead p95 (ms) |
 |---|---:|---:|---:|---:|---:|
-| baseline | 0.270 | 0.512 | 0.310 | — | — |
-| async | 0.989 | 1.830 | 1.108 | +0.719 | +1.318 |
-| sync | 0.913 | 1.502 | 1.006 | +0.643 | +0.990 |
+| baseline | 0.298 | 0.548 | 0.334 | — | — |
+| async | 1.179 | 2.139 | 1.282 | +0.881 | +1.591 |
+| sync | 0.968 | 1.755 | 1.092 | +0.670 | +1.207 |
+| memory | 2.166 | 3.650 | 2.333 | +1.868 | +3.101 |
 
-The overhead is about 0.7 ms at p50 and 1.3 ms at p95, well under the 5 ms target. Most of it is building the entries (request details, query call sites, redaction, JSON) rather than writing them. With a local SQLite file the synchronous insert is cheap, so `sync` comes out slightly faster than `async` here: the background thread competes with the request for the GIL. The async writer pays off when the storage is slow or remote (Postgres over the network), because the request never waits for it.
+The overhead is about 0.9 ms at p50 and 1.6 ms at p95, well under the 5 ms target. Most of it is building the entries (request details, query call sites, redaction, JSON) rather than writing them. With a local SQLite file the synchronous insert is cheap, so `sync` comes out slightly faster than `async` here: the background thread competes with the request for the GIL. The async writer pays off when the storage is slow or remote (Postgres over the network), because the request never waits for it.
+
+Tracking memory roughly doubles the overhead: about 1 ms more than `async` at p50 and 1.5 ms more at p95. While `tracemalloc` is tracing, every allocation in the process is recorded, and here tracing is also started and stopped on every request because nothing else keeps it running. That is why `TRACK_MEMORY` is off by default.
 
 To reproduce:
 

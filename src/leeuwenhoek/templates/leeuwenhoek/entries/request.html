@@ -14,6 +14,9 @@
     <div class="level-item has-text-centered"><div><p class="heading">Method</p><p class="title is-5">{{ c.method }}</p></div></div>
     <div class="level-item has-text-centered"><div><p class="heading">Status</p><p class="title is-5">{{ status_tag(c.status) }}</p></div></div>
     <div class="level-item has-text-centered"><div><p class="heading">Duration</p><p class="title is-5">{{ c.duration_ms | lw_duration }}</p></div></div>
+    {% if c.get('memory_peak_kb') is not none %}
+    <div class="level-item has-text-centered"><div><p class="heading">Peak memory</p><p class="title is-5">{{ c.memory_peak_kb | lw_kb }}</p></div></div>
+    {% endif %}
     <div class="level-item has-text-centered"><div><p class="heading">IP</p><p class="title is-5">{{ c.ip or '—' }}</p></div></div>
     <div class="level-item has-text-centered"><div><p class="heading">User</p><p class="title is-5">{{ c.user or '—' }}</p></div></div>
   </div>

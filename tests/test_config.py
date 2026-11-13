@@ -39,6 +39,11 @@ def test_app_config_beats_env_and_empty_env_is_unset(monkeypatch):
     assert c.page_size == 5 and c.sample_rate == 1.0 and c.enabled is None
 
 
+def test_track_memory_off_by_default_and_read_from_env(monkeypatch):
+    assert cfg(monkeypatch).track_memory is False
+    assert cfg(monkeypatch, {"LEEUWENHOEK_TRACK_MEMORY": "true"}).track_memory is True
+
+
 def test_database_url_from_parts(monkeypatch):
     c = cfg(
         monkeypatch,
