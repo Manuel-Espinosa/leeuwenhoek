@@ -76,17 +76,14 @@
   {% endif %}
 {%- endmacro %}
 
-{# Generic table: each type defines head() and row(e) in entries/<type>.html. Import `with context`. #}
+{# Generic table: each type defines head() and row(e) in entries/<type>.html; the rows come
+   from _rows.html. Import `with context`. #}
 {% macro entry_table(entries, entry_type) -%}
   {% import "leeuwenhoek/entries/" ~ entry_type ~ ".html" as t with context %}
   <div class="table-container">
     <table class="table is-fullwidth is-hoverable is-narrow">
       <thead><tr>{{ t.head() }}</tr></thead>
-      <tbody>
-        {% for e in entries %}
-          <tr class="lw-row" data-href="{{ url_for('leeuwenhoek.detail', slug=slug_for(entry_type), uuid=e.uuid) }}">{{ t.row(e) }}</tr>
-        {% endfor %}
-      </tbody>
+      <tbody>{% include "leeuwenhoek/_rows.html" %}</tbody>
     </table>
   </div>
 {%- endmacro %}

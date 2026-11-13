@@ -27,6 +27,7 @@ DEFAULTS: dict[str, Any] = {
     "ASYNC_WRITE": True,
     "BASIC_AUTH": None,
     "PAGE_SIZE": 50,
+    "POLL_SECONDS": 4,  # live polling interval in the panel; 0 disables it
     "BULMA_CDN": False,
     "SAMPLE_RATE": 1.0,  # fraction of batches to record (0-1)
     "ONLY_ERRORS": False,  # keep only batches with an exception or a 5xx response

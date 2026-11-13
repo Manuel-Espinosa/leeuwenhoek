@@ -80,14 +80,25 @@ def sections() -> list[dict[str, Any]]:
         if slug is None:
             continue
         items.append(
-            {"slug": slug, "label": watcher.label, "count": counts.get(watcher.entry_type, 0)}
+            {
+                "slug": slug,
+                "key": watcher.entry_type,  # key in storage.counts() and /api/status
+                "label": watcher.label,
+                "count": counts.get(watcher.entry_type, 0),
+            }
         )
     # Requests first, then Batches, then the rest in watcher order.
     items.sort(key=lambda s: s["slug"] != "requests")
     items.insert(
-        min(1, len(items)), {"slug": BATCHES, "label": "Batches", "count": counts.get("batches", 0)}
+        min(1, len(items)),
+        {"slug": BATCHES, "key": "batches", "label": "Batches", "count": counts.get("batches", 0)},
     )
     return items
+
+
+def _poll_seconds() -> float:
+    """Live polling interval; 0 (or less) disables polling."""
+    return max(0, lw().config.poll_seconds or 0)
 
 
 @bp.context_processor
@@ -99,6 +110,7 @@ def _inject() -> dict[str, Any]:
         "csrf_token": csrf_token,
         "slug_for": lambda type_: SLUGS.get(type_, type_),
         "use_cdn": lw().config.bulma_cdn,
+        "poll_seconds": _poll_seconds(),
     }
 
 
@@ -223,21 +235,30 @@ def _links(slug: str, page: Page, args: Mapping[str, Any]) -> tuple[str | None, 
     return older, newer
 
 
+def _listing_args(slug: str) -> dict[str, Any]:
+    """404 for an inactive section; otherwise the filters (``tag``, ``q``) of the request."""
+    if slug not in {s["slug"] for s in sections()}:
+        abort(404)
+    return {k: v for k in ("tag", "q") if (v := request.args.get(k))}
+
+
 @bp.get("/<slug>")
 def listing(slug: str) -> str:
-    active = {s["slug"] for s in sections()}
-    if slug not in active:
-        abort(404)
-    args = {k: v for k in ("tag", "q") if (v := request.args.get(k))}
+    args = _listing_args(slug)
+    before = request.args.get("before", type=int)
     page = lw().storage.page(
         None if slug == BATCHES else TYPES[slug],
         root_only=slug == BATCHES,
-        before=request.args.get("before", type=int),
+        before=before,
         after=request.args.get("after", type=int),
         limit=lw().config.page_size,
         **args,
     )
     older, newer = _links(slug, page, args)
+    # Poll for new rows only on the newest page: an older one must stay put while it is read.
+    rows_url = None
+    if _poll_seconds() and before is None and newer is None:
+        rows_url = url_for("leeuwenhoek.rows", slug=slug, **args)
     return render_template(
         "leeuwenhoek/index.html",
         slug=slug,
@@ -248,6 +269,29 @@ def listing(slug: str) -> str:
         newer_url=newer,
         tag=args.get("tag", ""),
         q=args.get("q", ""),
+        rows_url=rows_url,
+    )
+
+
+@bp.get("/<slug>/rows")
+def rows(slug: str) -> str:
+    """The ``<tr>`` rows of the entries newer than ``after``, for live polling.
+
+    Same filters as the listing. At most ``PAGE_SIZE`` rows, the oldest first after the cursor
+    (newest on top), so a client that falls behind catches up over a few polls.
+    """
+    args = _listing_args(slug)
+    entries = lw().storage.list(
+        None if slug == BATCHES else TYPES[slug],
+        root_only=slug == BATCHES,
+        after=request.args.get("after", type=int),
+        limit=lw().config.page_size,
+        **args,
+    )
+    return render_template(
+        "leeuwenhoek/_rows.html",
+        entries=entries,
+        entry_type=None if slug == BATCHES else TYPES[slug],
     )
 
 
