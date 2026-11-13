@@ -73,10 +73,11 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `log` | Level, message, logger name, `extra` fields and `exc_info`, from a handler on the root logger |
 | `dump` | Whatever you pass to `dump()`, with the file and line it was called from |
 | `mail` | Emails sent with Flask-Mail (its `email_dispatched` signal, which also fires when sending is suppressed with `MAIL_SUPPRESS_SEND` or `TESTING`): sender, to/cc/bcc, reply-to, subject, extra headers (redacted with `LEEUWENHOEK_HIDDEN_HEADERS`), HTML and text bodies (truncated to `LEEUWENHOEK_MAX_BODY_KB`) and attachment names and types, never their content. The panel previews the HTML body in a fully sandboxed `<iframe>` (no scripts, no same-origin). Needs the `mail` extra. |
+| `template` | Each Jinja template rendered with `render_template`, `render_template_string` or `stream_template`: name, file, context keys (never their values, and without Flask's own `g`, `request` and `session`) and render duration. Templates pulled in with `{% extends %}` or `{% include %}` are part of the top-level render, not separate entries. Leeuwenhoek's own templates are never recorded. |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
 
 ### N+1 queries
 

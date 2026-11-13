@@ -5,6 +5,7 @@ from .log import LogWatcher
 from .mail import MailWatcher
 from .query import QueryWatcher
 from .request import RequestWatcher
+from .template import TemplateWatcher
 
 #: in the order they appear in the menu
 AVAILABLE: dict[str, type[Watcher]] = {
@@ -16,6 +17,7 @@ AVAILABLE: dict[str, type[Watcher]] = {
         LogWatcher,
         QueryWatcher,
         MailWatcher,
+        TemplateWatcher,
     )
 }
 

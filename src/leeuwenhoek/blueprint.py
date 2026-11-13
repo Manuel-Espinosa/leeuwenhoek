@@ -43,6 +43,7 @@ SLUGS = {
     "log": "logs",
     "dump": "dumps",
     "mail": "mail",
+    "template": "templates",
 }
 TYPES = {slug: type_ for type_, slug in SLUGS.items()}
 BATCHES = "batches"
