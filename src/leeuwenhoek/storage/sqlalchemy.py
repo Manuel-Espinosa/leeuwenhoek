@@ -130,7 +130,7 @@ class SQLAlchemyStorage(StorageDriver):
 
     def counts(self) -> dict[str, int]:
         with self.engine.connect() as conn:
-            counts = dict(conn.execute(select(e.type, func.count()).group_by(e.type)).all())
+            counts = {t: n for t, n in conn.execute(select(e.type, func.count()).group_by(e.type))}
             counts["batches"] = conn.execute(
                 select(func.count()).where(e.is_root.is_(True))
             ).scalar_one()
