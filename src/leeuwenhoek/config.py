@@ -44,6 +44,7 @@ DEFAULTS: dict[str, Any] = {
     "CACHE_VALUES": False,  # store the values read and written by the cache watcher
     "IGNORE_COMMANDS": [],  # CLI commands not recorded ("db upgrade", "db", "seed-*")
     "N_PLUS_ONE_THRESHOLD": 5,  # same normalized query this many times in a batch; 0 disables
+    "SIGNALS": ["message_flashed"],  # Flask signals recorded by the event watcher
 }
 
 

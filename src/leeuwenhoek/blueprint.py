@@ -47,6 +47,9 @@ SLUGS = {
     "command": "commands",
     "http": "http",
     "cache": "cache",
+    "model": "models",
+    "event": "events",
+    "redis": "redis",
     "schedule": "schedule",
 }
 #: entry types that start a batch, shown on top of the batch page

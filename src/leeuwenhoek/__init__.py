@@ -11,6 +11,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
+import blinker
 from flask import Flask, current_app, has_app_context, request
 
 from . import context
@@ -22,6 +23,7 @@ from .storage import MemoryStorage, SQLAlchemyStorage, StorageDriver
 from .tags import Tagger, normalize
 from .watchers import AVAILABLE, Watcher, default_watchers
 from .watchers.dump import dump
+from .watchers.event import EventWatcher
 from .watchers.query import QueryWatcher
 from .writer import Writer
 
@@ -44,6 +46,8 @@ class Leeuwenhoek:
         self._authorize: Callable[[], bool] | None = None
         self._filters: list[EntryFilter] = []
         self._taggers: list[Tagger] = []
+        #: custom signals added with :meth:`watch_signal`, with their display name
+        self._signals: list[tuple[blinker.Signal, str | None]] = []
         self._writer: Writer | None = None
         self._recording = (True, 0.0)
         if app is not None:
@@ -130,6 +134,22 @@ class Leeuwenhoek:
         batch.tags.extend(tags)
         return True
 
+    def watch_signal(self, signal: blinker.Signal | str, name: str | None = None) -> blinker.Signal:
+        """Record every send of a blinker signal as an ``event`` entry, from any sender.
+
+        Works before or after ``init_app``; watching the same signal again does nothing. A string
+        is a named signal (``blinker.signal(name)``). ``name`` is shown instead of the signal's own
+        name, for anonymous ``Signal()`` objects. Returns the signal.
+        """
+        if isinstance(signal, str):
+            signal = blinker.signal(signal)
+        if not any(s is signal for s, _ in self._signals):
+            self._signals.append((signal, name))
+        watcher = self.watchers.get(EventWatcher.name)
+        if isinstance(watcher, EventWatcher):
+            watcher.watch(signal, name)
+        return signal
+
     # ------------------------------------------------------------------ state
 
     def enabled(self) -> bool:
@@ -160,15 +180,17 @@ class Leeuwenhoek:
 
     # ------------------------------------------------------------------ batches
 
-    def _begin(self) -> None:
-        path = request.path
+    def skips_path(self, path: str) -> bool:
+        """Whether requests to ``path`` are left out: the panel and ``IGNORE_PATHS``."""
         prefix = self.config.url_prefix.rstrip("/")
-        skip = (
+        return (
             path == prefix
             or path.startswith(prefix + "/")
             or is_ignored(path, self.config.ignore_paths)
         )
-        _, token = self.open_batch("request", skip=skip)
+
+    def _begin(self) -> None:
+        _, token = self.open_batch("request", skip=self.skips_path(request.path))
         request.environ[TOKEN] = token
 
     def _end(self, exc: BaseException | None) -> None:
