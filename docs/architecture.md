@@ -28,7 +28,7 @@ src/leeuwenhoek/
 ├── blueprint.py     # Panel views and Jinja filters
 ├── cli.py           # flask leeuwenhoek ...
 ├── storage/         # StorageDriver interface, SQLAlchemy driver, in-memory driver
-├── watchers/        # One module per entry type: request, exception, query, log, dump, template, command
+├── watchers/        # One module per entry type: request, exception, query, log, dump, template, command, http
 ├── templates/leeuwenhoek/
 └── static/leeuwenhoek/   # bundled Bulma, CSS and vanilla JS
 ```
@@ -99,6 +99,8 @@ The command watcher wraps `click.Command.invoke`, which every Click command (and
 The mail watcher connects to Flask-Mail's `email_dispatched` signal with the app as sender, so several apps in one process only see their own mail. Flask-Mail sends the signal even when delivery is suppressed (`MAIL_SUPPRESS_SEND`, on by default with `TESTING`), so mail sent in tests is recorded too. `unregister()` disconnects the receiver from every sender, because blinker only drops a receiver from `Signal.receivers` that way. The HTML body is rendered in an `<iframe sandbox="">` through `srcdoc`, which Jinja autoescapes like any attribute: the sandbox grants nothing, so the mail's scripts don't run and it can't reach the panel's origin.
 
 The template watcher listens to Flask's `before_render_template` and `template_rendered` signals for the app. They fire once per top-level render (`render_template`, `render_template_string`, `stream_template`), not for `{% extends %}` or `{% include %}`. A render can start another one (a context processor or a filter calling `render_template`), so starts are kept in a per-context stack and each `template_rendered` is paired with the innermost start for the same context dict, which both signals receive. Only the dict's `id` is stored, so a render that raised (and never sent `template_rendered`) keeps no reference to its context; the stack is capped so those leftovers stay bounded. Templates under `leeuwenhoek/` are skipped in both handlers, so rendering the panel never creates entries. A streamed template finishes rendering after the request batch has closed, so it is stored as `standalone`. Leeuwenhoek connects to these signals nowhere else, so nothing is recorded twice. `unregister()` disconnects both.
+
+The outgoing HTTP watcher (`watchers/http_client.py`) needs `requests` or `httpx`, not both, so it overrides `missing()` to report its modules only when neither is installed, and `register` patches only the libraries that are present. It replaces `send` on `requests.Session`, `httpx.Client` and `httpx.AsyncClient`. Patching the class, instead of using httpx event hooks or a transport wrapper, catches every client, including those created before `init_app` and inside third-party libraries, and it is the one place that sees the duration, the exception if the call raised, and the final response after redirects. `requests` sends each redirect hop through `Session.send` again, so a context variable marks the outermost call and the hops are folded into it. Patches follow the same rule as the exception hooks: `unregister()` puts the original method back if our wrapper is still on top; otherwise the wrapper stays and only delegates, and the next wrapper of ours to be removed from the top skips it, so once every instance is closed the original method is back.
 
 Planned watchers and their hooks are described in the [issues](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues?q=label%3Awatcher).
 

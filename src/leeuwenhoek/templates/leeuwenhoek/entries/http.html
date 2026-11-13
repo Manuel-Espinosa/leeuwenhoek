@@ -1,0 +1,36 @@
+{% from "leeuwenhoek/_macros.html" import status_tag, duration, time_ago, json_tree %}
+{% macro outcome(c) %}{% if c.error %}<span class="tag is-danger" title="{{ c.error.message }}">{{ c.error['class'].split('.')[-1] }}</span>{% else %}{{ status_tag(c.status) }}{% endif %}{% endmacro %}
+{% macro head() %}<th>Verb</th><th>URL</th><th>Status</th><th>Duration</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td><span class="tag">{{ e.content.method }}</span></td>
+  <td><code>{{ e.content.url | lw_truncate(90) }}</code></td>
+  <td>{{ outcome(e.content) }}</td>
+  <td>{{ duration(e.content.duration_ms) }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}{{ e.content.method }} <code>{{ e.content.url | lw_truncate(90) }}</code> {{ outcome(e.content) }} {{ duration(e.content.duration_ms) }}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <div class="level">
+    <div class="level-item has-text-centered"><div><p class="heading">Method</p><p class="title is-5">{{ c.method }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Status</p><p class="title is-5">{{ outcome(c) }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Duration</p><p class="title is-5">{{ c.duration_ms | lw_duration }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Host</p><p class="title is-5">{{ c.host or '—' }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Client</p><p class="title is-5">{{ c.library }}</p></div></div>
+  </div>
+  <p class="mb-3"><code>{{ c.url }}</code>
+    {%- if c.redirects %}<br><span class="is-size-7 has-text-grey">{{ c.redirects }} redirect{{ 's' if c.redirects > 1 }} → <code>{{ c.final_url }}</code></span>{% endif %}</p>
+  {% if c.error %}
+  <div class="notification is-danger is-light"><strong>{{ c.error['class'] }}</strong>: {{ c.error.message }}</div>
+  {% endif %}
+  <div class="lw-tabs">
+    <div class="tabs"><ul>
+      <li class="is-active"><a data-tab="payload">Payload</a></li>
+      <li><a data-tab="headers">Headers</a></li>
+      <li><a data-tab="response">Response</a></li>
+    </ul></div>
+    <div data-panel="payload">{{ json_tree(c.payload, true) if c.payload is not none else 'No payload' }}</div>
+    <div data-panel="headers" hidden>{{ json_tree({'request': c.request_headers, 'response': c.response_headers}, true) }}</div>
+    <div data-panel="response" hidden>{{ json_tree(c.response_body, true) if c.response_body is not none else 'No body recorded' }}</div>
+  </div>
+{% endmacro %}

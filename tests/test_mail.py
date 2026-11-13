@@ -101,7 +101,7 @@ def test_mail_listing_and_related_card(app, lw):
     assert listing.status_code == 200 and "Welcome" in listing.text
     req = entries(lw, "request")[0]
     detail = client.get(f"/leeuwenhoek/requests/{req.uuid}").text
-    assert "Mails" in detail and "Welcome" in detail
+    assert 'card-header-title">Mail ' in detail and "Welcome" in detail
     assert "Mail" in client.get("/leeuwenhoek/requests").text
 
 
