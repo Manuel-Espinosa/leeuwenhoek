@@ -1,0 +1,19 @@
+{% from "leeuwenhoek/_macros.html" import duration, time_ago %}
+{% macro name(c) %}<code>{{ c.name or "(string)" }}</code>{% endmacro %}
+{% macro head() %}<th>Template</th><th>Context keys</th><th>Duration</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td>{{ name(e.content) }}</td>
+  <td class="is-size-7">{{ e.content.context_keys | join(", ") | lw_truncate(90) }}</td>
+  <td>{{ duration(e.content.duration_ms) }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}template {{ name(e.content) }} {{ duration(e.content.duration_ms) }}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <p class="mb-2">{{ name(c) }} · <strong>{{ c.duration_ms | lw_duration }}</strong></p>
+  {% if c.file %}<p class="is-size-7 mb-3">File: <code>{{ c.file }}</code></p>{% endif %}
+  <p class="mb-1"><strong>Context keys</strong></p>
+  {% if c.context_keys %}
+    <div class="tags">{% for k in c.context_keys %}<span class="tag">{{ k }}</span>{% endfor %}</div>
+  {% else %}<p class="has-text-grey">None</p>{% endif %}
+{% endmacro %}

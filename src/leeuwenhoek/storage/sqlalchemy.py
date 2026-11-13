@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import builtins
 import os
-from datetime import timedelta
+from collections.abc import Collection
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import (
@@ -17,6 +18,7 @@ from sqlalchemy import (
     exists,
     func,
     insert,
+    or_,
     select,
     update,
 )
@@ -84,8 +86,13 @@ class SQLAlchemyStorage(StorageDriver):
         before=None,
         after=None,
         limit=50,
+        exclude_families=None,
     ) -> builtins.list[Entry]:
         stmt = select(entries_table)
+        if exclude_families:
+            stmt = stmt.where(
+                or_(e.family_hash.is_(None), e.family_hash.not_in(list(exclude_families)))
+            )
         if type:
             stmt = stmt.where(e.type == type)
         if root_only:
@@ -128,6 +135,17 @@ class SQLAlchemyStorage(StorageDriver):
         with self.engine.connect() as conn:
             return self._hydrate(conn.execute(stmt).mappings().all())
 
+    def last_seen(self, family_hashes: Collection[str]) -> dict[str, datetime]:
+        if not family_hashes:
+            return {}
+        stmt = (
+            select(e.family_hash, func.max(e.created_at))
+            .where(e.family_hash.in_(list(family_hashes)))
+            .group_by(e.family_hash)
+        )
+        with self.engine.connect() as conn:
+            return {family: last for family, last in conn.execute(stmt)}
+
     def counts(self) -> dict[str, int]:
         with self.engine.connect() as conn:
             counts = {t: n for t, n in conn.execute(select(e.type, func.count()).group_by(e.type))}
@@ -167,6 +185,17 @@ class SQLAlchemyStorage(StorageDriver):
             ).rowcount
             if not updated:
                 conn.execute(insert(settings_table).values(key=key, value=value))
+
+    def delete_setting(self, key: str) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(delete(settings_table).where(settings_table.c.key == key))
+
+    def settings(self, prefix: str = "") -> dict[str, str]:
+        stmt = select(settings_table.c.key, settings_table.c.value)
+        if prefix:
+            stmt = stmt.where(settings_table.c.key.startswith(prefix, autoescape=True))
+        with self.engine.connect() as conn:
+            return {key: value for key, value in conn.execute(stmt)}
 
     def close(self) -> None:
         self.engine.dispose()

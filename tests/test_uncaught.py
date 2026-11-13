@@ -143,10 +143,16 @@ def test_cli_command_exception_end_to_end(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'lw.db'}")
     with engine.connect() as conn:
         rows = conn.execute(
-            text("select content from leeuwenhoek_entries where type = 'exception'")
+            text("select content, batch_id from leeuwenhoek_entries where type = 'exception'")
+        ).all()
+        commands = conn.execute(
+            text("select content, batch_id from leeuwenhoek_entries where type = 'command'")
         ).all()
     engine.dispose()
     assert len(rows) == 1 and "command boom" in rows[0][0]
+    # the command watcher recorded it in the command's batch, and the hook didn't record it again
+    assert len(commands) == 1 and '"exit_code": 1' in commands[0][0]
+    assert rows[0][1] == commands[0][1]
 
 
 def test_request_exception_is_not_recorded_twice(app, ext, previous):

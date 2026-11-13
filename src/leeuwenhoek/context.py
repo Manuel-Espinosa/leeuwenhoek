@@ -8,10 +8,12 @@ from typing import Any, Literal
 
 from .models import Entry, new_id
 
+BatchKind = Literal["request", "job", "command", "standalone"]
+
 
 @dataclass
 class Batch:
-    kind: Literal["request", "job", "command", "standalone"] = "request"
+    kind: BatchKind = "request"
     id: str = field(default_factory=new_id)
     parent_id: str | None = None
     entries: list[Entry] = field(default_factory=list)

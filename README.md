@@ -24,6 +24,8 @@ pip install git+https://github.com/Manuel-Espinosa/flask-leeuwenhoek
 
 Add the `login` extra (`flask-leeuwenhoek[login] @ git+...`) to record the current [Flask-Login](https://flask-login.readthedocs.io/) user on each request. If Flask-Login is already installed, this happens automatically.
 
+Add the `mail` extra (`flask-leeuwenhoek[mail] @ git+...`) to record emails sent with [Flask-Mail](https://flask-mail.readthedocs.io/). As with every integration watcher, it turns on by itself when Flask-Mail is installed.
+
 Add the `http` extra to install [requests](https://requests.readthedocs.io/) and [HTTPX](https://www.python-httpx.org/) for the outgoing HTTP watcher. Either one is enough, and the watcher turns on by itself if your app already uses one of them.
 
 ## Quickstart
@@ -68,15 +70,26 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | Watcher | Captures |
 |---|---|
 | `request` | Method, URL, URL rule, endpoint, blueprint, view args, IP, headers, query string, body, session, user, status, response headers, response body (JSON/text only), duration, and optionally peak memory |
-| `query` | SQL, parameters, duration, and the file and line in *your* code that ran the query. Queries slower than `LEEUWENHOEK_SLOW_QUERY_MS` are flagged as slow. |
+| `query` | SQL, parameters, duration, and the file and line in *your* code that ran the query. Queries slower than `LEEUWENHOEK_SLOW_QUERY_MS` are flagged as slow, and queries repeated many times in one request as [N+1](#n1-queries). |
 | `exception` | Class, message, full traceback with a code snippet for each frame. Repeated exceptions are grouped into **families** (same class, file and line). Also captures exceptions turned into 5xx responses by your own error handlers, and uncaught exceptions in scripts, CLI commands and threads (through `sys.excepthook` and `threading.excepthook`, which are chained and restored by `lw.close()`). |
 | `log` | Level, message, logger name, `extra` fields and `exc_info`, from a handler on the root logger |
 | `dump` | Whatever you pass to `dump()`, with the file and line it was called from |
+| `mail` | Emails sent with Flask-Mail (its `email_dispatched` signal, which also fires when sending is suppressed with `MAIL_SUPPRESS_SEND` or `TESTING`): sender, to/cc/bcc, reply-to, subject, extra headers (redacted with `LEEUWENHOEK_HIDDEN_HEADERS`), HTML and text bodies (truncated to `LEEUWENHOEK_MAX_BODY_KB`) and attachment names and types, never their content. The panel previews the HTML body in a fully sandboxed `<iframe>` (no scripts, no same-origin). Needs the `mail` extra. |
+| `template` | Each Jinja template rendered with `render_template`, `render_template_string` or `stream_template`: name, file, context keys (never their values, and without Flask's own `g`, `request` and `session`) and render duration. Templates pulled in with `{% extends %}` or `{% include %}` are part of the top-level render, not separate entries. Leeuwenhoek's own templates are never recorded. |
+| `command` | `flask` CLI commands of `app.cli`: full name (`db seed` for subcommands), arguments, options, exit code and duration. Each command gets its own batch, see [CLI commands](#cli-commands). |
 | `http` | Outgoing HTTP calls made with [requests](https://requests.readthedocs.io/) or [HTTPX](https://www.python-httpx.org/) (sync and async clients): method, URL, request headers, payload, status, response headers, response body (JSON/text only), duration, redirects, and the error if the call raised. Enabled when either library is installed. |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow.
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
+
+### N+1 queries
+
+When a batch closes, its queries are grouped by their normalized SQL: string and number literals and bound parameters (`?`, `%s`, `:name`, `%(name)s`, `$1`) become `?`, lists such as `IN (1, 2, 3)` collapse to `IN (?)`, whitespace is collapsed and keywords are upper-cased. So `select * from users where id = 1` and `SELECT * FROM users WHERE id = 2` are the same statement.
+
+Every query in a group of at least `LEEUWENHOEK_N_PLUS_ONE_THRESHOLD` (default `5`) gets `content["n_plus_one"] = True` and the `n+1` tag, and shows a red **n+1** badge in the panel. The Queries card of the request lists each repeated statement with its count, for example `SELECT * FROM users WHERE id = ? × 12`. Set the threshold to `0` to turn detection off.
+
+The detection runs as an `on_finish` callback, before the batch is saved, so [filters and taggers](#tags) already see the flag and the tag (`lw.filter(lambda e: not e.content.get("n_plus_one"))` works, for example). Queries a filter drops afterwards were still counted.
 
 ### Outgoing HTTP
 
@@ -94,6 +107,23 @@ def checkout():
     return "ok"
 ```
 
+### CLI commands
+
+Every command you add to `app.cli` (with `@app.cli.command()`, a nested group or a blueprint's `cli`) gets its own batch, so the queries, logs and exceptions it produces are grouped under it, as they are under a request. Commands registered after `init_app` are recorded too.
+
+```python
+@app.cli.command("seed")
+@click.argument("count", type=int)
+@click.option("--token")
+def seed(count, token):
+    app.logger.info("seeding %s users", count)
+    db.session.execute(...)
+```
+
+`flask seed 10 --token=abc` records a `command` entry with `{"count": 10}` as arguments, `{"token": "********"}` as options (values are redacted with `LEEUWENHOEK_HIDDEN_PARAMS`), the exit code and the duration, plus the log line and the query, all in one batch. The exit code is `0`, the code given to `sys.exit()` or `ctx.exit()`, the code of a `click.ClickException` (`2` for a usage error), or `1` when the command raises. An exception raised by the command is recorded in its batch, and the batch is saved even though the command failed.
+
+Like requests, commands are only recorded while Leeuwenhoek is enabled: run them with `flask --debug ...` or set `LEEUWENHOEK_ENABLED`. Skip some with `LEEUWENHOEK_IGNORE_COMMANDS`: an entry matches a command by its full name, by a group prefix (`"db"` skips `db upgrade`) or as a glob (`"seed-*"`). Nothing that happens inside an ignored command is recorded. `flask leeuwenhoek ...`, `flask run` and `flask shell` never get a command entry or a batch: each request served by `flask run` gets its own batch as usual, and a shell session, which can last for hours and isn't one unit of work, stores what you run in it as standalone entries.
+
 ### Peak memory
 
 Set `LEEUWENHOEK_TRACK_MEMORY=true` to record how much memory each request allocated at its peak. It is shown as **Peak memory** in the request detail and stored as `memory_peak_kb` in the entry.
@@ -106,17 +136,24 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/http`), newest first, with search (`?q=`) and tag filter (`?tag=`) |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
-| `/leeuwenhoek/batch/<batch_id>` | A whole batch |
-| `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception |
+| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request or command on top |
+| `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception, with a Resolve / Reopen button |
+| `POST /leeuwenhoek/exceptions/family/<hash>/resolve` (`/reopen`) | Marks the family as resolved (or open again); needs the CSRF token |
 | `/leeuwenhoek/<type>/rows?after=<id>` | HTML `<tr>` rows of the entries newer than `<id>`, with the same filters as the listing (used by live polling) |
 | `/leeuwenhoek/api/status` | JSON: recording state and counts per type |
 
 Listings update live: every `LEEUWENHOEK_POLL_SECONDS` the panel fetches the new rows and puts them at the top of the table, and refreshes the counters in the menu. Polling pauses while the tab is hidden and doesn't add rows on an older page (`?before=`).
 
-The navbar has buttons to pause or resume recording and to clear all entries. Both use POST with the panel's own CSRF token. Apps using Flask-WTF don't need any changes, because the panel is exempted from Flask-WTF's CSRF check.
+The navbar has buttons to pause or resume recording and to clear all entries. They, like the Resolve / Reopen buttons below, use POST with the panel's own CSRF token. Apps using Flask-WTF don't need any changes, because the panel is exempted from Flask-WTF's CSRF check.
+
+### Resolving exceptions
+
+Once a bug is fixed, mark its exception family as resolved with the **Resolve** button on the Exceptions listing, an exception's detail page or its family page. Resolved families are hidden from the Exceptions listing (and from its live polling); **Show resolved** (`/leeuwenhoek/exceptions?resolved=1`) lists them again, marked as resolved and with a **Reopen** button.
+
+A new occurrence after the resolve time reopens the family by itself: it shows up in the listing again with all its occurrences. The state lives in the settings table (`resolved:<family_hash>` with the resolve time), so every instance sharing the database sees it.
 
 ## Configuration
 
@@ -128,11 +165,13 @@ Each setting is read from `app.config["LEEUWENHOEK_<KEY>"]` first, then from an 
 | `LEEUWENHOEK_URL_PREFIX` | `/leeuwenhoek` | Where the panel is mounted. Requests under it are never recorded. |
 | `LEEUWENHOEK_WATCHERS` | every watcher whose library is installed | Watchers to enable. A listed watcher whose library is missing is skipped with a warning. |
 | `LEEUWENHOEK_IGNORE_PATHS` | `["/static*", "/favicon.ico", "/health*"]` | Glob patterns of paths that are not recorded |
+| `LEEUWENHOEK_IGNORE_COMMANDS` | `[]` | CLI commands that are not recorded: full names, group prefixes or glob patterns, see [CLI commands](#cli-commands) |
 | `LEEUWENHOEK_HIDDEN_HEADERS` | `["authorization", "cookie", "x-api-key"]` | Headers replaced by `********` |
 | `LEEUWENHOEK_HIDDEN_PARAMS` | `["password", "password_confirmation", "token", "secret"]` | Keys replaced by `********` in bodies, query strings and sessions, at any depth |
 | `LEEUWENHOEK_MAX_BODY_KB` | `64` | Bodies larger than this are truncated |
 | `LEEUWENHOEK_MAX_ENTRIES_PER_BATCH` | `500` | Maximum entries per batch. The request entry itself is always kept. |
 | `LEEUWENHOEK_SLOW_QUERY_MS` | `100` | Queries that take longer than this many milliseconds are flagged as slow and tagged `slow` |
+| `LEEUWENHOEK_N_PLUS_ONE_THRESHOLD` | `5` | Queries with the same normalized SQL repeated this many times in a batch are tagged `n+1`, see [N+1 queries](#n1-queries). `0` disables it. |
 | `LEEUWENHOEK_REQUEST_TAGS` | `{}` | Tags built from request data, see [Tags](#tags) |
 | `LEEUWENHOEK_SAMPLE_RATE` | `1.0` | Fraction of requests to record (0–1) |
 | `LEEUWENHOEK_ONLY_ERRORS` | `False` | Keep only batches with an exception or a 5xx response |
