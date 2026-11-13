@@ -19,9 +19,11 @@ from ..models import Entry
 from .base import Watcher
 
 _SKIP = tuple(
-    f"{os.sep}{pkg}{os.sep}"
-    for pkg in ("sqlalchemy", "flask", "werkzeug", "flask_sqlalchemy", "leeuwenhoek")
+    f"{os.sep}{pkg}{os.sep}" for pkg in ("sqlalchemy", "flask", "werkzeug", "flask_sqlalchemy")
 )
+#: This package's own directory. Matched as a path prefix, not as a ``/leeuwenhoek/`` substring,
+#: so an app that lives in a directory called ``leeuwenhoek`` still gets its origin.
+_PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + os.sep
 MAX_FRAMES = 40
 STACK = "leeuwenhoek.query_start"
 N_PLUS_ONE_TAG = "n+1"
@@ -176,7 +178,9 @@ def origin() -> tuple[str | None, int | None]:
         if frame is None:
             break
         filename = frame.f_code.co_filename
-        if not any(part in filename for part in _SKIP) and not filename.startswith("<"):
+        if not filename.startswith(("<", _PACKAGE_DIR)) and not any(
+            part in filename for part in _SKIP
+        ):
             return filename, frame.f_lineno
         frame = frame.f_back
     return None, None
