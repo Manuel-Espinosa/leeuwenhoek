@@ -5,7 +5,8 @@ from __future__ import annotations
 import builtins
 import threading
 from collections import Counter
-from datetime import timedelta
+from collections.abc import Collection
+from datetime import datetime, timedelta
 
 from ..models import Entry, dumps, utcnow
 from .base import StorageDriver
@@ -38,9 +39,13 @@ class MemoryStorage(StorageDriver):
         before=None,
         after=None,
         limit=50,
+        exclude_families=None,
     ) -> builtins.list[Entry]:
         with self._lock:
             rows = list(self._entries)
+        if exclude_families:
+            excluded = set(exclude_families)
+            rows = [e for e in rows if e.family_hash not in excluded]
         if type:
             rows = [e for e in rows if e.type == type]
         if root_only:
@@ -70,6 +75,15 @@ class MemoryStorage(StorageDriver):
             rows = [e for e in self._entries if e.family_hash == family_hash]
         return list(reversed(rows))[:limit]
 
+    def last_seen(self, family_hashes: Collection[str]) -> dict[str, datetime]:
+        wanted = set(family_hashes)
+        seen: dict[str, datetime] = {}
+        with self._lock:
+            for e in self._entries:
+                if e.family_hash in wanted:
+                    seen[e.family_hash] = max(e.created_at, seen.get(e.family_hash, e.created_at))
+        return seen
+
     def counts(self) -> dict[str, int]:
         with self._lock:
             counts = Counter(e.type for e in self._entries)
@@ -95,3 +109,9 @@ class MemoryStorage(StorageDriver):
 
     def set_setting(self, key: str, value: str) -> None:
         self._settings[key] = value
+
+    def delete_setting(self, key: str) -> None:
+        self._settings.pop(key, None)
+
+    def settings(self, prefix: str = "") -> dict[str, str]:
+        return {k: v for k, v in list(self._settings.items()) if k.startswith(prefix)}

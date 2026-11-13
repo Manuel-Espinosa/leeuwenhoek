@@ -99,17 +99,24 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`), newest first, with search (`?q=`) and tag filter (`?tag=`) |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
 | `/leeuwenhoek/batch/<batch_id>` | A whole batch |
-| `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception |
+| `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception, with a Resolve / Reopen button |
+| `POST /leeuwenhoek/exceptions/family/<hash>/resolve` (`/reopen`) | Marks the family as resolved (or open again); needs the CSRF token |
 | `/leeuwenhoek/<type>/rows?after=<id>` | HTML `<tr>` rows of the entries newer than `<id>`, with the same filters as the listing (used by live polling) |
 | `/leeuwenhoek/api/status` | JSON: recording state and counts per type |
 
 Listings update live: every `LEEUWENHOEK_POLL_SECONDS` the panel fetches the new rows and puts them at the top of the table, and refreshes the counters in the menu. Polling pauses while the tab is hidden and doesn't add rows on an older page (`?before=`).
 
-The navbar has buttons to pause or resume recording and to clear all entries. Both use POST with the panel's own CSRF token. Apps using Flask-WTF don't need any changes, because the panel is exempted from Flask-WTF's CSRF check.
+The navbar has buttons to pause or resume recording and to clear all entries. They, like the Resolve / Reopen buttons below, use POST with the panel's own CSRF token. Apps using Flask-WTF don't need any changes, because the panel is exempted from Flask-WTF's CSRF check.
+
+### Resolving exceptions
+
+Once a bug is fixed, mark its exception family as resolved with the **Resolve** button on the Exceptions listing, an exception's detail page or its family page. Resolved families are hidden from the Exceptions listing (and from its live polling); **Show resolved** (`/leeuwenhoek/exceptions?resolved=1`) lists them again, marked as resolved and with a **Reopen** button.
+
+A new occurrence after the resolve time reopens the family by itself: it shows up in the listing again with all its occurrences. The state lives in the settings table (`resolved:<family_hash>` with the resolve time), so every instance sharing the database sees it.
 
 ## Configuration
 

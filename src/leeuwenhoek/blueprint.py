@@ -245,23 +245,44 @@ def _links(slug: str, page: Page, args: Mapping[str, Any]) -> tuple[str | None, 
 
 
 def _listing_args(slug: str) -> dict[str, Any]:
-    """404 for an inactive section; otherwise the filters (``tag``, ``q``) of the request."""
+    """404 for an inactive section; otherwise the filters of the request, to carry in URLs.
+
+    ``tag`` and ``q`` everywhere, plus ``resolved=1`` on Exceptions to include resolved families.
+    """
     if slug not in {s["slug"] for s in sections()}:
         abort(404)
-    return {k: v for k in ("tag", "q") if (v := request.args.get(k))}
+    args = {k: v for k in ("tag", "q") if (v := request.args.get(k))}
+    if slug == SLUGS["exception"] and request.args.get("resolved") == "1":
+        args["resolved"] = "1"
+    return args
+
+
+def _query(slug: str, args: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, datetime]]:
+    """Storage arguments of a listing, and the resolved exception families (for the badges)."""
+    query: dict[str, Any] = {
+        "type": None if slug == BATCHES else TYPES[slug],
+        "root_only": slug == BATCHES,
+        "tag": args.get("tag"),
+        "q": args.get("q"),
+    }
+    resolved: dict[str, datetime] = {}
+    if slug == SLUGS["exception"]:
+        resolved = lw().storage.resolved_families()
+        if not args.get("resolved"):
+            query["exclude_families"] = resolved
+    return query, resolved
 
 
 @bp.get("/<slug>")
 def listing(slug: str) -> str:
     args = _listing_args(slug)
+    query, resolved = _query(slug, args)
     before = request.args.get("before", type=int)
     page = lw().storage.page(
-        None if slug == BATCHES else TYPES[slug],
-        root_only=slug == BATCHES,
         before=before,
         after=request.args.get("after", type=int),
         limit=lw().config.page_size,
-        **args,
+        **query,
     )
     older, newer = _links(slug, page, args)
     # Poll for new rows only on the newest page: an older one must stay put while it is read.
@@ -278,6 +299,8 @@ def listing(slug: str) -> str:
         newer_url=newer,
         tag=args.get("tag", ""),
         q=args.get("q", ""),
+        show_resolved=bool(args.get("resolved")),
+        resolved=resolved,
         rows_url=rows_url,
     )
 
@@ -290,17 +313,15 @@ def rows(slug: str) -> str:
     (newest on top), so a client that falls behind catches up over a few polls.
     """
     args = _listing_args(slug)
+    query, resolved = _query(slug, args)
     entries = lw().storage.list(
-        None if slug == BATCHES else TYPES[slug],
-        root_only=slug == BATCHES,
-        after=request.args.get("after", type=int),
-        limit=lw().config.page_size,
-        **args,
+        after=request.args.get("after", type=int), limit=lw().config.page_size, **query
     )
     return render_template(
         "leeuwenhoek/_rows.html",
         entries=entries,
-        entry_type=None if slug == BATCHES else TYPES[slug],
+        entry_type=query["type"],
+        resolved=resolved,
     )
 
 
@@ -313,6 +334,7 @@ def detail(slug: str, uuid: str) -> str:
         "leeuwenhoek/detail.html",
         entry=entry,
         related=_group(lw().storage.batch(entry.batch_id), skip=entry),
+        resolved_at=_resolved_at(entry.family_hash),
     )
 
 
@@ -336,7 +358,31 @@ def family(hash: str) -> str:
     entries = lw().storage.family(hash)
     if not entries:
         abort(404)
-    return render_template("leeuwenhoek/family.html", entries=entries, first=entries[0])
+    return render_template(
+        "leeuwenhoek/family.html",
+        entries=entries,
+        first=entries[0],
+        resolved_at=_resolved_at(hash),
+    )
+
+
+def _resolved_at(family_hash: str | None) -> datetime | None:
+    """When the family was resolved, or ``None`` if it is open (or reopened)."""
+    return lw().storage.family_resolved_at(family_hash) if family_hash else None
+
+
+@bp.post("/exceptions/family/<hash>/resolve")
+def resolve_family(hash: str) -> BaseResponse:
+    if not lw().storage.family(hash, limit=1):
+        abort(404)
+    lw().storage.resolve_family(hash)
+    return redirect(request.referrer or url_for("leeuwenhoek.family", hash=hash))
+
+
+@bp.post("/exceptions/family/<hash>/reopen")
+def reopen_family(hash: str) -> BaseResponse:
+    lw().storage.reopen_family(hash)
+    return redirect(request.referrer or url_for("leeuwenhoek.family", hash=hash))
 
 
 def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, Any]]:
