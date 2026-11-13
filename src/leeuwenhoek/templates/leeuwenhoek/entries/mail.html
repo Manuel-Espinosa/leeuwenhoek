@@ -1,0 +1,35 @@
+{% from "leeuwenhoek/_macros.html" import time_ago %}
+{% macro head() %}<th>Subject</th><th>To</th><th>Attachments</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td>{{ e.content.subject | lw_truncate(90) }}</td>
+  <td class="is-size-7">{{ e.content.to | join(", ") | lw_truncate(60) }}</td>
+  <td>{% if e.content.attachments %}<span class="tag">{{ e.content.attachments | length }}</span>{% endif %}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}mail <strong>{{ e.content.subject | lw_truncate(80) }}</strong> <span class="has-text-grey">to {{ e.content.to | join(", ") | lw_truncate(60) }}</span>{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <table class="table is-narrow is-fullwidth">
+    <tr><th>Subject</th><td>{{ c.subject }}</td></tr>
+    <tr><th>From</th><td>{{ c.sender or "—" }}</td></tr>
+    {% for label, key in [("To", "to"), ("Cc", "cc"), ("Bcc", "bcc")] %}
+      {% if c[key] %}<tr><th>{{ label }}</th><td>{{ c[key] | join(", ") }}</td></tr>{% endif %}
+    {% endfor %}
+    {% if c.reply_to %}<tr><th>Reply-To</th><td>{{ c.reply_to }}</td></tr>{% endif %}
+    {% if c.attachments %}<tr><th>Attachments</th><td>
+      {% for a in c.attachments %}<span class="tag mr-1">{{ a.filename or "(unnamed)" }} <span class="has-text-grey ml-1">{{ a.content_type }}</span></span>{% endfor %}
+    </td></tr>{% endif %}
+    {% for k, v in (c.headers or {}).items() %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}
+  </table>
+  {% if c.html %}
+    <p class="mt-3 mb-1"><strong>HTML</strong></p>
+    {# Empty sandbox: no scripts, no same-origin, no forms, no popups. srcdoc is autoescaped. #}
+    <iframe class="lw-mail-preview" sandbox="" referrerpolicy="no-referrer" srcdoc="{{ c.html }}"></iframe>
+    <details class="mt-2"><summary>HTML source</summary><pre>{{ c.html }}</pre></details>
+  {% endif %}
+  {% if c.text %}
+    <p class="mt-3 mb-1"><strong>Text</strong></p>
+    <pre>{{ c.text }}</pre>
+  {% endif %}
+  {% if not c.html and not c.text %}<p class="has-text-grey">No body.</p>{% endif %}
+{% endmacro %}
