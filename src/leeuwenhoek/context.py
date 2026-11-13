@@ -8,7 +8,9 @@ from typing import Any, Literal
 
 from .models import Entry, new_id
 
-BatchKind = Literal["request", "job", "command", "standalone"]
+# ``job``: a unit of work dispatched by another batch (a queued task); ``schedule``: a run started
+# by a scheduler's clock (APScheduler), which no batch dispatched.
+BatchKind = Literal["request", "job", "command", "schedule", "standalone"]
 
 
 @dataclass

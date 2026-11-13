@@ -18,6 +18,9 @@ login = ["flask-login>=0.6"]
 mail = ["flask-mail>=0.9"]
 http = ["requests>=2.31", "httpx>=0.27"]
 cache = ["flask-caching>=2.0"]
+redis = ["redis>=5.0"]
+sched = ["apscheduler>=3.10,<4"]
+rq = ["rq>=1.15"]
 celery = ["celery>=5.3"]
 
 [project.entry-points."flask.commands"]
@@ -42,6 +45,10 @@ dev = [
     "httpx>=0.28.1",
     "types-requests>=2.33.0.20261030",
     "flask-caching>=2.4.1",
+    "redis>=8.1.0",
+    "fakeredis>=2.40.0",
+    "apscheduler>=3.10,<4",
+    "rq>=3.0.0",
     "celery>=5.7.0",
 ]
 
@@ -54,6 +61,11 @@ python_version = "3.10"
 [[tool.mypy.overrides]]
 # Optional dependency (the ``login`` extra): not installed in the dev environment.
 module = ["flask_login", "flask_login.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# APScheduler 3.x ships no type information.
+module = ["apscheduler", "apscheduler.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

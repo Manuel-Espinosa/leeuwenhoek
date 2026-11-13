@@ -1,0 +1,33 @@
+{% from "leeuwenhoek/_macros.html" import time_ago, json_tree %}
+{% macro action_tag(action) -%}
+  {%- set cls = {'created': 'is-success', 'updated': 'is-info', 'deleted': 'is-danger'}.get(action, '') -%}
+  <span class="tag {{ cls }} is-light">{{ action }}</span>
+{%- endmacro %}
+{% macro key(c) %}{% if c.key is not none %}<code>#{{ c.key | join(", ") if c.key is sequence and c.key is not string else c.key }}</code>{% endif %}{% endmacro %}
+{% macro head() %}<th>Model</th><th>Action</th><th>Key</th><th>Changed</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td><code>{{ e.content.model }}</code></td>
+  <td>{{ action_tag(e.content.action) }}</td>
+  <td>{{ key(e.content) }}</td>
+  <td class="is-size-7">{{ e.content.changes | join(", ") | lw_truncate(90) }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}{{ action_tag(e.content.action) }} <code>{{ e.content.model }}</code> {{ key(e.content) }}{% endmacro %}
+{% macro cell(v) %}{% if v is none %}<span class="has-text-grey">null</span>{% elif v is mapping or (v is sequence and v is not string) %}{{ json_tree(v) }}{% else %}<code>{{ v }}</code>{% endif %}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <p class="mb-2">{{ action_tag(c.action) }} <code>{{ c.model }}</code> {{ key(c) }}
+    {%- if c.table %} · <span class="has-text-grey">table {{ c.table }}</span>{% endif %}</p>
+  {% if c.changes %}
+  <table class="table is-narrow is-fullwidth">
+    <thead><tr><th>Attribute</th>{% if c.action != "created" %}<th>Old</th>{% endif %}{% if c.action != "deleted" %}<th>New</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for name, change in c.changes.items() %}
+      <tr><th><code>{{ name }}</code></th>
+        {% if c.action != "created" %}<td>{{ cell(change.old) }}</td>{% endif %}
+        {% if c.action != "deleted" %}<td>{{ cell(change.new) }}</td>{% endif %}</tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="has-text-grey">No column values loaded</p>{% endif %}
+{% endmacro %}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import os
+import weakref
 from collections.abc import Collection
 from datetime import datetime, timedelta
 from typing import Any
@@ -50,6 +51,17 @@ class SQLAlchemyStorage(StorageDriver):
         self.engine: Engine = create_engine(url, **kwargs)
         if sqlite:
             event.listen(self.engine, "connect", _sqlite_pragmas)
+        if hasattr(os, "register_at_fork") and kwargs.get("poolclass") is not StaticPool:
+            # The child of a fork (an RQ work horse) must not use the parent's pooled
+            # connections: it opens its own and leaves the parent's open for the parent.
+            ref = weakref.ref(self)
+
+            def after_fork() -> None:
+                storage = ref()
+                if storage is not None:
+                    storage.engine.dispose(close=False)
+
+            os.register_at_fork(after_in_child=after_fork)
 
     def install(self) -> None:
         metadata.create_all(self.engine)
