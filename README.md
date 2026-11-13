@@ -30,6 +30,8 @@ Add the `mail` extra (`flask-leeuwenhoek[mail] @ git+...`) to record emails sent
 
 Add the `http` extra to install [requests](https://requests.readthedocs.io/) and [HTTPX](https://www.python-httpx.org/) for the outgoing HTTP watcher. Either one is enough, and the watcher turns on by itself if your app already uses one of them.
 
+Add the `rq` extra (`flask-leeuwenhoek[rq]`) to record [RQ](https://python-rq.org/) jobs (RQ 1.15 or newer). The watcher turns on by itself when RQ is installed.
+
 ## Quickstart
 
 ```python
@@ -81,10 +83,11 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `command` | `flask` CLI commands of `app.cli`: full name (`db seed` for subcommands), arguments, options, exit code and duration. Each command gets its own batch, see [CLI commands](#cli-commands). |
 | `http` | Outgoing HTTP calls made with [requests](https://requests.readthedocs.io/) or [HTTPX](https://www.python-httpx.org/) (sync and async clients): method, URL, request headers, payload, status, response headers, response body (JSON/text only), duration, redirects, and the error if the call raised. Enabled when either library is installed. |
 | `cache` | Flask-Caching operations (`get`, `get_many`, `get_dict`, `has`, `set`, `add`, `set_many`, `delete`, `delete_many`, `unlink`, `clear`), including the ones made by `@cache.cached` and `@cache.memoize` (with Flask-Caching 2.5 or newer; older versions, the last ones for Python 3.10, make the decorators talk to the backend directly and only the direct calls are recorded): keys, hit or miss for reads, TTL for writes, backend and duration. Values are stored only with `LEEUWENHOEK_CACHE_VALUES`. The Cache card of a request shows its hit and miss counts. |
+| `rq` | RQ jobs: function path, queue, job id, status, arguments and keyword arguments (redacted with `LEEUWENHOEK_HIDDEN_PARAMS`, truncated to `LEEUWENHOEK_MAX_BODY_KB`), duration and exception. Each execution gets its own batch, linked to the request that enqueued the job, see [RQ jobs](#rq-jobs). Needs the `rq` extra. |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`. RQ entries get `rq_job:<id>`, `rq_queue:<name>` and `rq_status:<status>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
 
 ### N+1 queries
 
@@ -127,6 +130,30 @@ def seed(count, token):
 
 Like requests, commands are only recorded while Leeuwenhoek is enabled: run them with `flask --debug ...` or set `LEEUWENHOEK_ENABLED`. Skip some with `LEEUWENHOEK_IGNORE_COMMANDS`: an entry matches a command by its full name, by a group prefix (`"db"` skips `db upgrade`) or as a glob (`"seed-*"`). Nothing that happens inside an ignored command is recorded. `flask leeuwenhoek ...`, `flask run` and `flask shell` never get a command entry or a batch: each request served by `flask run` gets its own batch as usual, and a shell session, which can last for hours and isn't one unit of work, stores what you run in it as standalone entries.
 
+### RQ jobs
+
+Jobs are recorded twice, as RQ sees them:
+
+- **The dispatch**: `queue.enqueue(...)` (or `enqueue_call`, or `enqueue_job` with a job built by `Job.create`) records an `rq` entry with `event: "enqueue"` in the current batch, so a request's detail lists the jobs it enqueued, and stores the batch id in `job.meta["leeuwenhoek_parent_batch_id"]`. Its status is `queued`, `deferred` for a job waiting on a dependency, or the outcome for a synchronous queue. Outside a batch (a script), it is stored as `standalone`.
+- **Each execution**: the worker runs the job in a new batch (`kind="job"`) whose `parent_batch_id` is the dispatching batch. Its root entry (`event: "perform"`) has the status `finished` or `failed`, the duration and, on failure, the exception class and message. Queries, logs, HTTP calls and the exception raised by the job join this batch, and the job's detail links back to the request. A retried job gets one batch per attempt.
+
+The `rq_job:<id>` tag ties the dispatch and every execution of one job together: the job detail links to them.
+
+```python
+queue = Queue(connection=redis)
+
+
+@app.post("/reports")
+def create_report():
+    # Recorded kwargs: {"report_id": 7, "token": "********"}
+    queue.enqueue(build_report, report_id=7, token="abc")
+    return "", 202
+```
+
+The worker must create the app (and so call `Leeuwenhoek.init_app`) before it starts, for example with a small script that builds the app and then runs `Worker([queue], connection=redis).work()`. Forking workers (the default `Worker`), `SimpleWorker` and `Queue(is_async=False)` are all covered. A forked work horse ends with `os._exit()`, which skips the `atexit` flush, so the watcher writes the job's batch before handing control back to RQ (waiting up to `LEEUWENHOEK_FLUSH_TIMEOUT`). The worker's own work between jobs (polling, heartbeats, registry cleanup, its log lines) is never recorded. A work horse killed by RQ (`SIGKILL` after a hard timeout) records nothing. Jobs that RQ moves on its own (the scheduler enqueuing a job scheduled with `enqueue_at`, a dependency becoming ready, a retry) are not recorded again as dispatches, only when they run.
+
+`args` and `kwargs` hold the job's original arguments when `args_redacted` is `false`: nothing was masked, truncated or turned into a string to fit in JSON. When it is `true`, they are only for display. `job.description` is not stored, because it repeats the arguments unredacted.
+
 ### Peak memory
 
 Set `LEEUWENHOEK_TRACK_MEMORY=true` to record how much memory each request allocated at its peak. It is shown as **Peak memory** in the request detail and stored as `memory_peak_kb` in the entry.
@@ -139,10 +166,10 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`, `/rq`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
-| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request or command on top |
+| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request, command or job on top |
 | `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception, with a Resolve / Reopen button |
 | `POST /leeuwenhoek/exceptions/family/<hash>/resolve` (`/reopen`) | Marks the family as resolved (or open again); needs the CSRF token |
 | `/leeuwenhoek/<type>/rows?after=<id>` | HTML `<tr>` rows of the entries newer than `<id>`, with the same filters as the listing (used by live polling) |

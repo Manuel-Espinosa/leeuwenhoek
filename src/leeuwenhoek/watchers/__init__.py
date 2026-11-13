@@ -8,6 +8,7 @@ from .log import LogWatcher
 from .mail import MailWatcher
 from .query import QueryWatcher
 from .request import RequestWatcher
+from .rq import RQWatcher
 from .template import TemplateWatcher
 
 #: in the order they appear in the menu
@@ -24,6 +25,7 @@ AVAILABLE: dict[str, type[Watcher]] = {
         CommandWatcher,
         HttpClientWatcher,
         CacheWatcher,
+        RQWatcher,
     )
 }
 

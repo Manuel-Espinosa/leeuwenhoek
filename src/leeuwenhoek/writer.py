@@ -8,6 +8,7 @@ import queue
 import random
 import threading
 import time
+import weakref
 from collections.abc import Callable
 
 from .models import Entry
@@ -35,6 +36,25 @@ class Writer:
         self._next_prune = self._schedule_prune()
         self._last_warning = 0.0
         self.dropped = 0
+        if hasattr(os, "register_at_fork"):  # not on Windows
+            ref = weakref.ref(self)
+
+            def after_fork() -> None:
+                writer = ref()
+                if writer is not None:
+                    writer._after_fork()
+
+            os.register_at_fork(after_in_child=after_fork)
+
+    def _after_fork(self) -> None:
+        """Start the child of a fork (an RQ work horse) with an empty queue and fresh locks.
+
+        The batches queued in the parent are the parent's to write, and its writer thread may
+        have held a lock at the moment of the fork, which would never be released in the child.
+        """
+        self._queue = queue.Queue(maxsize=self._queue.maxsize)
+        self._lock = threading.Lock()
+        self._thread = None
 
     def put(self, entries: list[Entry]) -> bool:
         """Enqueue without blocking; if the queue is full the batch is dropped."""

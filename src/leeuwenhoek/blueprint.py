@@ -47,9 +47,10 @@ SLUGS = {
     "command": "commands",
     "http": "http",
     "cache": "cache",
+    "rq": "rq",
 }
 #: entry types that start a batch, shown on top of the batch page
-MAIN_TYPES = ("request", "command")
+MAIN_TYPES = ("request", "command", "rq")
 TYPES = {slug: type_ for type_, slug in SLUGS.items()}
 BATCHES = "batches"
 
@@ -299,7 +300,8 @@ def batch(batch_id: str) -> str:
     entries = lw().storage.batch(batch_id)
     if not entries:
         abort(404)
-    main = next((e for e in entries if e.type in MAIN_TYPES), None)
+    # The root one: a request batch can also hold the non-root entries of the jobs it enqueued.
+    main = next((e for e in entries if e.type in MAIN_TYPES and e.is_root), None)
     return render_template(
         "leeuwenhoek/batch.html",
         batch_id=batch_id,
