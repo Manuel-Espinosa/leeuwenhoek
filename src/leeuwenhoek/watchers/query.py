@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
+from collections import Counter
+from collections.abc import Iterable
 from types import FrameType
 from typing import Any
 
 from sqlalchemy import Engine, event
 
+from ..context import Batch
 from ..filters import redact
+from ..models import Entry
 from .base import Watcher
 
 _SKIP = tuple(
@@ -19,6 +24,72 @@ _SKIP = tuple(
 )
 MAX_FRAMES = 40
 STACK = "leeuwenhoek.query_start"
+N_PLUS_ONE_TAG = "n+1"
+
+#: SQL keywords: highlighted in the panel and upper-cased by ``normalize_sql``.
+KEYWORDS = [
+    "SELECT",
+    "INSERT",
+    "INTO",
+    "UPDATE",
+    "DELETE",
+    "FROM",
+    "WHERE",
+    "AND",
+    "OR",
+    "NOT",
+    "NULL",
+    "IS",
+    "IN",
+    "LIKE",
+    "JOIN",
+    "LEFT",
+    "RIGHT",
+    "INNER",
+    "OUTER",
+    "ON",
+    "GROUP",
+    "BY",
+    "ORDER",
+    "HAVING",
+    "LIMIT",
+    "OFFSET",
+    "AS",
+    "VALUES",
+    "SET",
+    "CREATE",
+    "TABLE",
+    "DROP",
+    "ALTER",
+    "INDEX",
+    "DISTINCT",
+    "COUNT",
+    "UNION",
+    "ALL",
+    "CASE",
+    "WHEN",
+    "THEN",
+    "ELSE",
+    "END",
+    "BETWEEN",
+    "EXISTS",
+    "ASC",
+    "DESC",
+    "PRAGMA",
+    "RETURNING",
+]
+KEYWORD_RE = re.compile(r"\b(" + "|".join(KEYWORDS) + r")\b", re.IGNORECASE)
+
+# Applied in order by ``normalize_sql``. String literals go first so nothing inside them is
+# mistaken for a parameter or a number.
+_NORMALIZE = [
+    (re.compile(r"'(?:[^']|'')*'"), "?"),  # 'text', with '' escapes
+    (re.compile(r"%\(\w+\)s|%s|(?<!:):\w+|\$\d+"), "?"),  # %(name)s, %s, :name, $1
+    (re.compile(r"(?<![\w$\"])(?:0x[0-9a-f]+|\d+(?:\.\d+)?(?:e[+-]?\d+)?)\b", re.IGNORECASE), "?"),
+    (re.compile(r"\s+"), " "),
+    (re.compile(r"\(\s*\?(?:\s*,\s*\?)*\s*\)"), "(?)"),  # IN (?, ?, ?) -> IN (?)
+    (re.compile(r"\(\?\)(?:\s*,\s*\(\?\))+"), "(?)"),  # VALUES (?), (?) -> VALUES (?)
+]
 
 
 class QueryWatcher(Watcher):
@@ -38,11 +109,23 @@ class QueryWatcher(Watcher):
             event.listen(target, "before_cursor_execute", self._before)
             event.listen(target, "after_cursor_execute", self._after)
 
+        self.lw.on_finish.append(self._detect_n_plus_one)
+
     def unregister(self) -> None:
         for target in self._targets:
             event.remove(target, "before_cursor_execute", self._before)
             event.remove(target, "after_cursor_execute", self._after)
         self._targets = []
+        if self._detect_n_plus_one in self.lw.on_finish:
+            self.lw.on_finish.remove(self._detect_n_plus_one)
+
+    def _detect_n_plus_one(self, batch: Batch, exc: BaseException | None) -> None:
+        """Flag the queries repeated at least ``N_PLUS_ONE_THRESHOLD`` times in the batch.
+
+        Runs as an ``on_finish`` callback, so before the batch is persisted and therefore before
+        entry filters and taggers: they already see ``content["n_plus_one"]`` and the tag.
+        """
+        flag_n_plus_one(batch.entries, self.lw.config.n_plus_one_threshold)
 
     def _own(self, conn) -> bool:
         return conn.engine is getattr(self.lw.storage, "engine", None)
@@ -127,3 +210,49 @@ def _literal(value: Any) -> str:
     if isinstance(value, (int, float)):
         return str(value)
     return "'" + str(value).replace("'", "''") + "'"
+
+
+def normalize_sql(sql: str) -> str:
+    """The shape of a statement: literals and bound parameters become ``?``.
+
+    ``... where id = 1`` and ``... where id = :id`` both give ``... WHERE id = ?``. Lists of
+    parameters collapse to one (``IN (?)``), whitespace is collapsed and keywords upper-cased.
+    """
+    out = sql
+    for pattern, repl in _NORMALIZE:
+        out = pattern.sub(repl, out)
+    return KEYWORD_RE.sub(lambda m: m.group(1).upper(), out.strip())
+
+
+def flag_n_plus_one(entries: Iterable[Entry], threshold: int) -> int:
+    """Mark the queries whose normalized SQL repeats ``threshold`` times or more.
+
+    Each one gets ``content["n_plus_one"] = True`` and the ``n+1`` tag. A ``threshold`` of 0 (or
+    less) disables detection. Returns how many entries were flagged.
+    """
+    if threshold <= 0:
+        return 0
+    groups: dict[str, list[Entry]] = {}
+    for entry in entries:
+        if entry.type == "query" and isinstance(entry.content.get("sql"), str):
+            groups.setdefault(normalize_sql(entry.content["sql"]), []).append(entry)
+    flagged = 0
+    for group in groups.values():
+        if len(group) < threshold:
+            continue
+        for entry in group:
+            entry.content["n_plus_one"] = True
+            if N_PLUS_ONE_TAG not in entry.tags:
+                entry.tags.append(N_PLUS_ONE_TAG)
+            flagged += 1
+    return flagged
+
+
+def n_plus_one_summary(entries: Iterable[Entry]) -> list[tuple[str, int]]:
+    """``(normalized SQL, count)`` of the flagged queries, the most repeated first."""
+    counts = Counter(
+        normalize_sql(e.content["sql"])
+        for e in entries
+        if e.type == "query" and e.content.get("n_plus_one") and e.content.get("sql")
+    )
+    return counts.most_common()

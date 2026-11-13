@@ -41,6 +41,7 @@ DEFAULTS: dict[str, Any] = {
     "REQUEST_TAGS": {},  # {"tag_name": "dotted.path" | ["path", ...]}
     "TRACK_MEMORY": False,  # record each request's peak memory with tracemalloc
     "SLOW_QUERY_MS": 100,  # queries slower than this are flagged as slow
+    "N_PLUS_ONE_THRESHOLD": 5,  # same normalized query this many times in a batch; 0 disables
 }
 
 

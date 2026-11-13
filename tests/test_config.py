@@ -49,6 +49,11 @@ def test_slow_query_threshold_default_and_env(monkeypatch):
     assert cfg(monkeypatch, {"LEEUWENHOEK_SLOW_QUERY_MS": "250"}).slow_query_ms == 250
 
 
+def test_n_plus_one_threshold_default_and_env(monkeypatch):
+    assert cfg(monkeypatch).n_plus_one_threshold == 5
+    assert cfg(monkeypatch, {"LEEUWENHOEK_N_PLUS_ONE_THRESHOLD": "0"}).n_plus_one_threshold == 0
+
+
 def test_database_url_from_parts(monkeypatch):
     c = cfg(
         monkeypatch,

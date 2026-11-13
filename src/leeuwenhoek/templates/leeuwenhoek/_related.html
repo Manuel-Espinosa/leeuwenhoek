@@ -1,13 +1,25 @@
 {% from "leeuwenhoek/_macros.html" import entry_table with context %}
-{# One card per related section of the batch, with its count, slow entries and total time. #}
+{# One card per related section of the batch, with its count, slow entries, total time and, for
+   queries, the statements repeated enough to look like an N+1. #}
 {% for g in (groups if groups is defined else related) %}
   <div class="card mb-4">
     <header class="card-header">
       <p class="card-header-title">{{ g.label }} <span class="tag is-rounded ml-2">{{ g.count }}</span>
-        {%- if g.slow %}<span class="tag is-warning is-rounded ml-2">{{ g.slow }} slow</span>{% endif %}</p>
-      {% if g.total_ms %}<p class="card-header-icon has-text-grey">{{ g.total_ms | lw_duration }} en total</p>{% endif %}
+        {%- if g.slow %}<span class="tag is-warning is-rounded ml-2">{{ g.slow }} slow</span>{% endif %}
+        {%- if g.n_plus_one %}<span class="tag is-danger is-rounded ml-2">n+1</span>{% endif %}</p>
+      {% if g.total_ms %}<p class="card-header-icon has-text-grey">{{ g.total_ms | lw_duration }} in total</p>{% endif %}
     </header>
     <div class="card-content p-3">
+      {% if g.n_plus_one %}
+      <div class="notification is-danger is-light p-3 mb-3">
+        <p class="mb-1"><strong>Possible N+1 queries</strong></p>
+        <ul>
+          {% for sql, count in g.n_plus_one %}
+          <li><code>{{ sql | lw_truncate(160) }}</code> × {{ count }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
       {{ entry_table(g.entries, g.type) }}
     </div>
   </div>
