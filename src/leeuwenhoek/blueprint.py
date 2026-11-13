@@ -287,7 +287,7 @@ def family(hash: str) -> str:
 
 
 def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, Any]]:
-    """Group by type and compute each group's count and total time."""
+    """Group by type and compute each group's count, total time and slow entries."""
     groups: dict[str, list[Entry]] = {}
     for entry in entries:
         if skip is not None and entry.uuid == skip.uuid:
@@ -301,6 +301,7 @@ def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, An
             "entries": items,
             "count": len(items),
             "total_ms": sum(i.content.get("duration_ms") or 0 for i in items) or None,
+            "slow": sum(1 for i in items if i.content.get("slow")),
         }
         for type_, items in sorted(groups.items(), key=lambda kv: order.index(kv[0]))
     ]

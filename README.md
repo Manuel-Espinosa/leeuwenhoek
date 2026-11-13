@@ -66,14 +66,14 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | Watcher | Captures |
 |---|---|
 | `request` | Method, URL, URL rule, endpoint, blueprint, view args, IP, headers, query string, body, session, user, status, response headers, response body (JSON/text only), duration |
-| `query` | SQL, parameters, duration, and the file and line in *your* code that ran the query |
+| `query` | SQL, parameters, duration, and the file and line in *your* code that ran the query. Queries slower than `LEEUWENHOEK_SLOW_QUERY_MS` are flagged as slow. |
 | `exception` | Class, message, full traceback with a code snippet for each frame. Repeated exceptions are grouped into **families** (same class, file and line). Also captures exceptions turned into 5xx responses by your own error handlers, and uncaught exceptions in scripts, CLI commands and threads (through `sys.excepthook` and `threading.excepthook`, which are chained and restored by `lw.close()`). |
 | `log` | Level, message, logger name, `extra` fields and `exc_info`, from a handler on the root logger |
 | `dump` | Whatever you pass to `dump()`, with the file and line it was called from |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>`.
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow.
 
 ### `dump()`
 
@@ -114,6 +114,7 @@ Each setting is read from `app.config["LEEUWENHOEK_<KEY>"]` first, then from an 
 | `LEEUWENHOEK_HIDDEN_PARAMS` | `["password", "password_confirmation", "token", "secret"]` | Keys replaced by `********` in bodies, query strings and sessions, at any depth |
 | `LEEUWENHOEK_MAX_BODY_KB` | `64` | Bodies larger than this are truncated |
 | `LEEUWENHOEK_MAX_ENTRIES_PER_BATCH` | `500` | Maximum entries per batch. The request entry itself is always kept. |
+| `LEEUWENHOEK_SLOW_QUERY_MS` | `100` | Queries that take longer than this many milliseconds are flagged as slow and tagged `slow` |
 | `LEEUWENHOEK_REQUEST_TAGS` | `{}` | Tags built from request data, see [Tags](#tags) |
 | `LEEUWENHOEK_SAMPLE_RATE` | `1.0` | Fraction of requests to record (0–1) |
 | `LEEUWENHOEK_ONLY_ERRORS` | `False` | Keep only batches with an exception or a 5xx response |
@@ -178,6 +179,22 @@ from leeuwenhoek import add_tags
 
 add_tags(f"customer:{customer.id}")
 ```
+
+## Filters
+
+A filter decides which entries are stored. It receives an entry and returns `True` to keep it. Several can be registered, and `lw.filter` works as a decorator too:
+
+```python
+# Skip "304 Not Modified" responses
+lw.filter(lambda e: not (e.type == "request" and e.content["status"] == 304))
+
+
+@lw.filter
+def no_debug_logs(entry):
+    return not (entry.type == "log" and entry.content["level"] == "DEBUG")
+```
+
+Filters run when a batch is saved, before tagging. If a filter drops the root entry of a batch (the request entry, for example), the whole batch is dropped. A filter that raises is logged and the entry is kept.
 
 ## Running in production or staging
 
