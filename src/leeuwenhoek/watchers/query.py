@@ -59,6 +59,7 @@ class QueryWatcher(Watcher):
         if batch is not None and not batch.recording:
             return
         duration = (time.perf_counter() - started) * 1000
+        slow = duration > self.lw.config.slow_query_ms
         params = redact(_plain(parameters), self.lw.config.hidden_params)
         file, line = origin()
         self.record(
@@ -71,7 +72,9 @@ class QueryWatcher(Watcher):
                 "file": file,
                 "line": line,
                 "many": executemany,
-            }
+                "slow": slow,
+            },
+            tags=["slow"] if slow else None,
         )
 
 
