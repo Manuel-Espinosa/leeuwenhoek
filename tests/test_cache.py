@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 import pytest
 from conftest import entries
 from flask import Flask
@@ -6,6 +8,13 @@ from flask_caching import Cache
 from leeuwenhoek import Leeuwenhoek
 from leeuwenhoek.filters import MASK
 from leeuwenhoek.watchers.cache import METHODS, CacheWatcher, hidden_key
+
+#: Flask-Caching < 2.5 (the last one for Python 3.10) makes the decorators talk to the backend
+#: directly (``self.cache.get``), bypassing the ``Cache`` methods the watcher wraps.
+decorators_use_cache_methods = pytest.mark.skipif(
+    tuple(int(p) for p in version("flask-caching").split(".")[:2]) < (2, 5),
+    reason="Flask-Caching < 2.5 decorators bypass Cache.get/set",
+)
 
 
 @pytest.fixture
@@ -108,6 +117,7 @@ def test_nested_calls_are_recorded_once(app, cache, lw):
     assert (get_dict["hits"], get_dict["misses"]) == (1, 1)
 
 
+@decorators_use_cache_methods
 def test_cached_decorator(app, cache, lw, client):
     @app.get("/view")
     @cache.cached(timeout=60)
@@ -187,6 +197,7 @@ def test_watcher_metadata():
     assert CacheWatcher.available()
 
 
+@decorators_use_cache_methods
 def test_memoize(app, cache, lw):
     calls = []
 
