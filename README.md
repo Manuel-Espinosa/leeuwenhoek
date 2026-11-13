@@ -30,6 +30,8 @@ Add the `mail` extra (`flask-leeuwenhoek[mail] @ git+...`) to record emails sent
 
 Add the `http` extra to install [requests](https://requests.readthedocs.io/) and [HTTPX](https://www.python-httpx.org/) for the outgoing HTTP watcher. Either one is enough, and the watcher turns on by itself if your app already uses one of them.
 
+Add the `sched` extra (`flask-leeuwenhoek[sched]`) to record [APScheduler](https://apscheduler.readthedocs.io/en/3.x/) job runs. Only APScheduler 3.x is supported (`apscheduler>=3.10,<4`); version 4 has a different API. The watcher turns on by itself when APScheduler is installed.
+
 ## Quickstart
 
 ```python
@@ -81,10 +83,11 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `command` | `flask` CLI commands of `app.cli`: full name (`db seed` for subcommands), arguments, options, exit code and duration. Each command gets its own batch, see [CLI commands](#cli-commands). |
 | `http` | Outgoing HTTP calls made with [requests](https://requests.readthedocs.io/) or [HTTPX](https://www.python-httpx.org/) (sync and async clients): method, URL, request headers, payload, status, response headers, response body (JSON/text only), duration, redirects, and the error if the call raised. Enabled when either library is installed. |
 | `cache` | Flask-Caching operations (`get`, `get_many`, `get_dict`, `has`, `set`, `add`, `set_many`, `delete`, `delete_many`, `unlink`, `clear`), including the ones made by `@cache.cached` and `@cache.memoize` (with Flask-Caching 2.5 or newer; older versions, the last ones for Python 3.10, make the decorators talk to the backend directly and only the direct calls are recorded): keys, hit or miss for reads, TTL for writes, backend and duration. Values are stored only with `LEEUWENHOEK_CACHE_VALUES`. The Cache card of a request shows its hit and miss counts. |
+| `schedule` | Each run of an APScheduler 3.x job: id, name, function, trigger, executor, scheduled and next run time, arguments (redacted with `LEEUWENHOEK_HIDDEN_PARAMS`), result (`repr`, truncated) or exception, and duration; also runs missed past their misfire grace time and runs skipped because the job reached `max_instances`. Each run gets its own batch, see [Scheduled jobs](#scheduled-jobs). Needs the `sched` extra. |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`, scheduled job runs `job:<id>` and `job_status:<success|error|missed|skipped>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
 
 ### N+1 queries
 
@@ -127,6 +130,29 @@ def seed(count, token):
 
 Like requests, commands are only recorded while Leeuwenhoek is enabled: run them with `flask --debug ...` or set `LEEUWENHOEK_ENABLED`. Skip some with `LEEUWENHOEK_IGNORE_COMMANDS`: an entry matches a command by its full name, by a group prefix (`"db"` skips `db upgrade`) or as a glob (`"seed-*"`). Nothing that happens inside an ignored command is recorded. `flask leeuwenhoek ...`, `flask run` and `flask shell` never get a command entry or a batch: each request served by `flask run` gets its own batch as usual, and a shell session, which can last for hours and isn't one unit of work, stores what you run in it as standalone entries.
 
+### Scheduled jobs
+
+Every run of an [APScheduler](https://apscheduler.readthedocs.io/en/3.x/) 3.x job gets its own batch, with a `schedule` entry as its root, so the queries, logs and exceptions of one run are grouped under it, as they are under a request. It works with every scheduler (`BackgroundScheduler`, `BlockingScheduler`, `AsyncIOScheduler`...), every job store and coroutine jobs.
+
+```python
+scheduler = BackgroundScheduler()
+
+
+@scheduler.scheduled_job("interval", minutes=5, id="sync")
+def sync_users():
+    with app.app_context():  # needed to use Flask-SQLAlchemy and friends
+        app.logger.info("syncing users")
+        db.session.execute(...)
+```
+
+Leeuwenhoek never pushes an app context for a job: a job that needs one must push it itself, as it would without Leeuwenhoek, so the job behaves the same whether it is installed or not. Recording needs no app context.
+
+A run records the job id and name, the function, the trigger (`interval[0:05:00]`, `cron[...]`), the executor, the time it was scheduled for and the next run time, the arguments, its duration, and its `repr()`'d result (cut at 1000 characters) or the exception it raised, which is also recorded in the batch by the exception watcher (as handled, since APScheduler catches it). Runs missed by more than the job's `misfire_grace_time` and runs skipped because the job already had `max_instances` running are recorded as `missed` and `skipped` entries, without a batch of their own. A run started while a batch is current in the scheduler's thread (a `flask` command running a `BlockingScheduler`, for example) keeps that batch as its parent.
+
+APScheduler logs `Running job ...` before a run and `Job ... raised an exception` after it, outside the run, so the log watcher stores these lines as standalone entries.
+
+With the `ProcessPoolExecutor`, the job runs in another process and is **not recorded**: Leeuwenhoek's wrapper does not cross the process boundary, and the child process gets the original job. Use a thread pool (the default) or record from inside the job. Celery beat is not part of this watcher: scheduled Celery tasks are recorded by the Celery watcher.
+
 ### Peak memory
 
 Set `LEEUWENHOEK_TRACK_MEMORY=true` to record how much memory each request allocated at its peak. It is shown as **Peak memory** in the request detail and stored as `memory_peak_kb` in the entry.
@@ -139,10 +165,10 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`, `/schedule`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
-| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request or command on top |
+| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request, command or scheduled job run on top |
 | `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception, with a Resolve / Reopen button |
 | `POST /leeuwenhoek/exceptions/family/<hash>/resolve` (`/reopen`) | Marks the family as resolved (or open again); needs the CSRF token |
 | `/leeuwenhoek/<type>/rows?after=<id>` | HTML `<tr>` rows of the entries newer than `<id>`, with the same filters as the listing (used by live polling) |

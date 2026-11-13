@@ -1,0 +1,33 @@
+{% from "leeuwenhoek/_macros.html" import duration, time_ago, json_tree %}
+{% macro status_tag(status) -%}
+  <span class="tag {{ {'success': 'is-success', 'error': 'is-danger', 'missed': 'is-warning', 'skipped': 'is-warning'}.get(status, '') }}">{{ status }}</span>
+{%- endmacro %}
+{% macro head() %}<th>Job</th><th>Trigger</th><th>Status</th><th>Duration</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td><code>{{ e.content.name }}</code></td>
+  <td>{{ e.content.trigger | lw_truncate(60) }}</td>
+  <td>{{ status_tag(e.content.status) }}</td>
+  <td>{{ duration(e.content.duration_ms) }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}<code>{{ e.content.name }}</code> {{ status_tag(e.content.status) }} {{ duration(e.content.duration_ms) }}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <div class="level">
+    <div class="level-item has-text-centered"><div><p class="heading">Job</p><p class="title is-5"><code>{{ c.name }}</code></p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Status</p><p class="title is-5">{{ status_tag(c.status) }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Duration</p><p class="title is-5">{{ c.duration_ms | lw_duration }}</p></div></div>
+  </div>
+  <table class="table is-narrow is-fullwidth">
+    <tr><th>Job id</th><td><code>{{ c.id }}</code></td></tr>
+    {% if c.func %}<tr><th>Function</th><td><code>{{ c.func }}</code></td></tr>{% endif %}
+    {% if c.trigger %}<tr><th>Trigger</th><td>{{ c.trigger }}</td></tr>{% endif %}
+    {% if c.executor %}<tr><th>Executor</th><td>{{ c.executor }}</td></tr>{% endif %}
+    <tr><th>Scheduled run time</th><td>{{ c.scheduled_run_time or "—" }}</td></tr>
+    <tr><th>Next run time</th><td>{{ c.next_run_time or "—" }}</td></tr>
+    {% if c.reason %}<tr><th>Reason</th><td>{{ c.reason }}</td></tr>{% endif %}
+    {% if c.exception %}<tr><th>Exception</th><td><code>{{ c.exception['class'] }}</code>: {{ c.exception.message }}</td></tr>{% endif %}
+    {% if c.result is not none and c.result is defined %}<tr><th>Result</th><td><code>{{ c.result }}</code></td></tr>{% endif %}
+  </table>
+  {% if c.arguments %}<p class="mt-3 mb-1"><strong>Arguments</strong></p>{{ json_tree(c.arguments, true) }}{% endif %}
+{% endmacro %}
