@@ -55,6 +55,9 @@ class ExceptionWatcher(Watcher):
         if threading.excepthook == self._threading_excepthook:
             threading.excepthook = self._previous_threading_excepthook
 
+    def signals(self) -> tuple[Any, ...]:
+        return (got_request_exception,)
+
     def _excepthook(
         self, exc_type: type[BaseException], exc: BaseException, tb: TracebackType | None
     ) -> None:

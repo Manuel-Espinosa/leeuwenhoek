@@ -41,6 +41,9 @@ class TemplateWatcher(Watcher):
         before_render_template.disconnect(self._before, self._app)
         template_rendered.disconnect(self._rendered, self._app)
 
+    def signals(self) -> tuple[Any, ...]:
+        return (before_render_template, template_rendered)
+
     def _before(self, sender: Flask, template: Template, context: dict[str, Any], **_: Any) -> None:
         if is_own(template):
             return
