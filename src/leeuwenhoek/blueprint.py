@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
@@ -19,9 +20,11 @@ from flask import (
     url_for,
 )
 from markupsafe import Markup, escape
+from werkzeug.wrappers import Response as BaseResponse
 
 from .auth import CSRF_COOKIE, check_access, csrf_token, verify_csrf
 from .models import Entry, utcnow
+from .storage.base import Page
 
 bp = Blueprint(
     "leeuwenhoek",
@@ -206,11 +209,11 @@ def lw_sql(sql: str | None) -> Markup:
 
 
 @bp.get("/")
-def home() -> Response:
+def home() -> BaseResponse:
     return redirect(url_for("leeuwenhoek.listing", slug=sections()[0]["slug"]))
 
 
-def _links(slug: str, page, args: dict[str, str]) -> tuple[str | None, str | None]:
+def _links(slug: str, page: Page, args: Mapping[str, Any]) -> tuple[str | None, str | None]:
     older = (
         url_for("leeuwenhoek.listing", slug=slug, before=page.older, **args) if page.older else None
     )
@@ -304,13 +307,13 @@ def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, An
 
 
 @bp.post("/recording/toggle")
-def toggle_recording() -> Response:
+def toggle_recording() -> BaseResponse:
     lw().set_recording(not lw().is_recording())
     return redirect(request.referrer or url_for("leeuwenhoek.home"))
 
 
 @bp.post("/clear")
-def clear() -> Response:
+def clear() -> BaseResponse:
     lw().flush()
     lw().storage.clear()
     return redirect(url_for("leeuwenhoek.home"))

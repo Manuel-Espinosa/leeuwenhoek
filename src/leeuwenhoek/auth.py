@@ -22,7 +22,7 @@ def check_access(lw: Leeuwenhoek) -> Response | None:
     if lw._authorize is not None:
         if not lw._authorize():
             abort(403)
-    elif not lw.app.debug and lw.config.basic_auth is None:
+    elif not (lw.app is not None and lw.app.debug) and lw.config.basic_auth is None:
         abort(403)
     credentials = lw.config.basic_auth
     if credentials is not None:

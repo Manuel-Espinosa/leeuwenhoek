@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import os
 from datetime import timedelta
 from typing import Any
@@ -83,7 +84,7 @@ class SQLAlchemyStorage(StorageDriver):
         before=None,
         after=None,
         limit=50,
-    ) -> list[Entry]:
+    ) -> builtins.list[Entry]:
         stmt = select(entries_table)
         if type:
             stmt = stmt.where(e.type == type)
@@ -112,12 +113,12 @@ class SQLAlchemyStorage(StorageDriver):
             row = conn.execute(select(entries_table).where(e.uuid == uuid)).mappings().first()
         return self._hydrate([row])[0] if row else None
 
-    def batch(self, batch_id: str) -> list[Entry]:
+    def batch(self, batch_id: str) -> builtins.list[Entry]:
         stmt = select(entries_table).where(e.batch_id == batch_id).order_by(e.id.asc())
         with self.engine.connect() as conn:
             return self._hydrate(conn.execute(stmt).mappings().all())
 
-    def family(self, family_hash: str, limit: int = 100) -> list[Entry]:
+    def family(self, family_hash: str, limit: int = 100) -> builtins.list[Entry]:
         stmt = (
             select(entries_table)
             .where(e.family_hash == family_hash)
@@ -129,7 +130,7 @@ class SQLAlchemyStorage(StorageDriver):
 
     def counts(self) -> dict[str, int]:
         with self.engine.connect() as conn:
-            counts = dict(conn.execute(select(e.type, func.count()).group_by(e.type)).all())
+            counts = {t: n for t, n in conn.execute(select(e.type, func.count()).group_by(e.type))}
             counts["batches"] = conn.execute(
                 select(func.count()).where(e.is_root.is_(True))
             ).scalar_one()
@@ -170,7 +171,7 @@ class SQLAlchemyStorage(StorageDriver):
     def close(self) -> None:
         self.engine.dispose()
 
-    def _hydrate(self, rows) -> list[Entry]:
+    def _hydrate(self, rows) -> builtins.list[Entry]:
         if not rows:
             return []
         uuids = [r["uuid"] for r in rows]
