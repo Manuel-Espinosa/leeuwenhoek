@@ -81,11 +81,12 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `command` | `flask` CLI commands of `app.cli`: full name (`db seed` for subcommands), arguments, options, exit code and duration. Each command gets its own batch, see [CLI commands](#cli-commands). |
 | `http` | Outgoing HTTP calls made with [requests](https://requests.readthedocs.io/) or [HTTPX](https://www.python-httpx.org/) (sync and async clients): method, URL, request headers, payload, status, response headers, response body (JSON/text only), duration, redirects, and the error if the call raised. Enabled when either library is installed. |
 | `cache` | Flask-Caching operations (`get`, `get_many`, `get_dict`, `has`, `set`, `add`, `set_many`, `delete`, `delete_many`, `unlink`, `clear`), including the ones made by `@cache.cached` and `@cache.memoize` (with Flask-Caching 2.5 or newer; older versions, the last ones for Python 3.10, make the decorators talk to the backend directly and only the direct calls are recorded): keys, hit or miss for reads, TTL for writes, backend and duration. Values are stored only with `LEEUWENHOEK_CACHE_VALUES`. The Cache card of a request shows its hit and miss counts. |
+| `model` | Inserts, updates and deletes made through the SQLAlchemy ORM, in any `Session` (Flask-SQLAlchemy's or your own): model, table, action (`created`, `updated`, `deleted`), primary key and the changed columns with their old and new values. Recorded when the transaction commits, see [ORM models](#orm-models). |
 | `event` | Blinker signals: the Flask signals in `LEEUWENHOEK_SIGNALS` (by default `message_flashed`) and your own signals added with `lw.watch_signal()`: signal name, sender (class name or truncated `repr`) and keyword arguments (redacted with `LEEUWENHOEK_HIDDEN_PARAMS`, truncated to `LEEUWENHOEK_MAX_BODY_KB`), tagged `event:<name>`. See [Signals](#signals). |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`. Log entries get `level:<LEVEL>`, templates `template:<name>` and ORM changes `model:<Name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
 
 ### N+1 queries
 
@@ -98,6 +99,18 @@ The detection runs as an `on_finish` callback, before the batch is saved, so [fi
 ### Outgoing HTTP
 
 Every call made through `requests` or `httpx` (including `httpx.AsyncClient`) is recorded, whichever client or session made it, and appears in the **HTTP client** section and as a card in the detail of the request that made it. Calls made outside a request are stored as standalone entries. The URL's query parameters and the payload and JSON response keys listed in `LEEUWENHOEK_HIDDEN_PARAMS` are masked, as are the headers in `LEEUWENHOEK_HIDDEN_HEADERS`; bodies are cut at `LEEUWENHOEK_MAX_BODY_KB`. Only JSON and text response bodies are kept, and never for streamed responses (`stream=True`), which are left unread. A `requests` redirect chain is one entry with the final URL and the number of redirects. Entries are tagged `host:<hostname>`, and calls that raised are tagged `failed`.
+
+### ORM models
+
+The `model` watcher listens to `after_flush` on SQLAlchemy's `Session` class, so every session is covered without configuration. For each object a flush inserts, updates or deletes it records the model class, the table, the action, the primary key (also for new rows, whose key the database just assigned) and the changes, as `{"column": {"old": ..., "new": ...}}`:
+
+- **created**: every loaded column, from `null`.
+- **updated**: only the columns that really changed (an object in `session.dirty` whose values are the same is skipped). An old value that was never loaded is `null`.
+- **deleted**: every loaded column, to `null`.
+
+Only columns are recorded; relationships are skipped, since their foreign key columns already show the link. Values are made JSON-safe (datetimes as ISO strings, `Decimal` as a string, binary data as `<N bytes>`), columns named in `LEEUWENHOEK_HIDDEN_PARAMS` are masked, and each value is cut at `LEEUWENHOEK_MAX_BODY_KB`. Nothing is ever loaded from the database to fill a value.
+
+Changes are captured at flush time, while their history still exists, but only **recorded when the transaction commits**. Changes flushed and then rolled back (including a rolled-back `begin_nested()` savepoint) or left uncommitted when the session closes are dropped, so the panel only shows what reached the database. A commit made after the request ended is stored as standalone. Leeuwenhoek's own storage (its engine and its tables) is never recorded.
 
 ### Signals
 
@@ -161,7 +174,7 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`, `/events`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`, `/models`, `/events`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
 | `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request or command on top |
