@@ -47,6 +47,7 @@ SLUGS = {
     "command": "commands",
     "http": "http",
     "cache": "cache",
+    "event": "events",
 }
 #: entry types that start a batch, shown on top of the batch page
 MAIN_TYPES = ("request", "command")

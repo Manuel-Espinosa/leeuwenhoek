@@ -2,6 +2,7 @@ from .base import Watcher
 from .cache import CacheWatcher
 from .command import CommandWatcher
 from .dump import DumpWatcher
+from .event import EventWatcher
 from .exception import ExceptionWatcher
 from .http_client import HttpClientWatcher
 from .log import LogWatcher
@@ -24,6 +25,7 @@ AVAILABLE: dict[str, type[Watcher]] = {
         CommandWatcher,
         HttpClientWatcher,
         CacheWatcher,
+        EventWatcher,
     )
 }
 

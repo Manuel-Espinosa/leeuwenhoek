@@ -81,6 +81,7 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `command` | `flask` CLI commands of `app.cli`: full name (`db seed` for subcommands), arguments, options, exit code and duration. Each command gets its own batch, see [CLI commands](#cli-commands). |
 | `http` | Outgoing HTTP calls made with [requests](https://requests.readthedocs.io/) or [HTTPX](https://www.python-httpx.org/) (sync and async clients): method, URL, request headers, payload, status, response headers, response body (JSON/text only), duration, redirects, and the error if the call raised. Enabled when either library is installed. |
 | `cache` | Flask-Caching operations (`get`, `get_many`, `get_dict`, `has`, `set`, `add`, `set_many`, `delete`, `delete_many`, `unlink`, `clear`), including the ones made by `@cache.cached` and `@cache.memoize` (with Flask-Caching 2.5 or newer; older versions, the last ones for Python 3.10, make the decorators talk to the backend directly and only the direct calls are recorded): keys, hit or miss for reads, TTL for writes, backend and duration. Values are stored only with `LEEUWENHOEK_CACHE_VALUES`. The Cache card of a request shows its hit and miss counts. |
+| `event` | Blinker signals: the Flask signals in `LEEUWENHOEK_SIGNALS` (by default `message_flashed`) and your own signals added with `lw.watch_signal()`: signal name, sender (class name or truncated `repr`) and keyword arguments (redacted with `LEEUWENHOEK_HIDDEN_PARAMS`, truncated to `LEEUWENHOEK_MAX_BODY_KB`), tagged `event:<name>`. See [Signals](#signals). |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
@@ -97,6 +98,27 @@ The detection runs as an `on_finish` callback, before the batch is saved, so [fi
 ### Outgoing HTTP
 
 Every call made through `requests` or `httpx` (including `httpx.AsyncClient`) is recorded, whichever client or session made it, and appears in the **HTTP client** section and as a card in the detail of the request that made it. Calls made outside a request are stored as standalone entries. The URL's query parameters and the payload and JSON response keys listed in `LEEUWENHOEK_HIDDEN_PARAMS` are masked, as are the headers in `LEEUWENHOEK_HIDDEN_HEADERS`; bodies are cut at `LEEUWENHOEK_MAX_BODY_KB`. Only JSON and text response bodies are kept, and never for streamed responses (`stream=True`), which are left unread. A `requests` redirect chain is one entry with the final URL and the number of redirects. Entries are tagged `host:<hostname>`, and calls that raised are tagged `failed`.
+
+### Signals
+
+Watch your own [blinker](https://blinker.readthedocs.io/) signals with `lw.watch_signal()`, before or after `init_app`. Every send is recorded as an `event` entry in the Events section and in the batch of the request, command or job that sent it, or as a standalone entry outside one. Watching a signal twice does nothing.
+
+```python
+from blinker import signal
+
+order_placed = signal("order-placed")
+lw.watch_signal(order_placed)  # or lw.watch_signal("order-placed")
+lw.watch_signal(anonymous_signal, name="cart-emptied")  # a name for a Signal() without one
+
+
+@app.post("/orders")
+def create_order():
+    order_placed.send(current_user, order_id=7, total=99.5)
+```
+
+Flask's own signals are picked by name with `LEEUWENHOEK_SIGNALS` (`message_flashed`, `request_started`, `request_finished`, `request_tearing_down`, `appcontext_pushed`, `appcontext_popped`, `appcontext_tearing_down`, `template_rendered`, `before_render_template`, `got_request_exception`), and only the ones the app sends are recorded. The default is just `message_flashed`: the request and app context signals fire on every request and repeat what the request entry already shows. `request_started` fires before the request's batch opens and `request_tearing_down` and the app context ones after it closes, so they are stored as standalone entries.
+
+A signal that another active watcher already records is never recorded twice: `template_rendered` and `before_render_template` while the `template` watcher is on, `got_request_exception` while the `exception` watcher is on, and Flask-Mail's `email_dispatched` while the `mail` watcher is on. Signals sent while the panel is served, for ignored paths, while recording is paused, or by Leeuwenhoek itself are never recorded.
 
 ### `dump()`
 
@@ -139,7 +161,7 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`, `/events`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
 | `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request or command on top |
@@ -176,6 +198,7 @@ Each setting is read from `app.config["LEEUWENHOEK_<KEY>"]` first, then from an 
 | `LEEUWENHOEK_SLOW_QUERY_MS` | `100` | Queries that take longer than this many milliseconds are flagged as slow and tagged `slow` |
 | `LEEUWENHOEK_CACHE_VALUES` | `False` | Store the values the cache watcher reads and writes, truncated to `LEEUWENHOEK_MAX_BODY_KB`. Fields named in `LEEUWENHOEK_HIDDEN_PARAMS` are redacted inside values, and the whole value is replaced by `********` when its key contains one of those names (`user:1:token`). |
 | `LEEUWENHOEK_N_PLUS_ONE_THRESHOLD` | `5` | Queries with the same normalized SQL repeated this many times in a batch are tagged `n+1`, see [N+1 queries](#n1-queries). `0` disables it. |
+| `LEEUWENHOEK_SIGNALS` | `["message_flashed"]` | Flask signals the event watcher records, by name, see [Signals](#signals) |
 | `LEEUWENHOEK_REQUEST_TAGS` | `{}` | Tags built from request data, see [Tags](#tags) |
 | `LEEUWENHOEK_SAMPLE_RATE` | `1.0` | Fraction of requests to record (0–1) |
 | `LEEUWENHOEK_ONLY_ERRORS` | `False` | Keep only batches with an exception or a 5xx response |
