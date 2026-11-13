@@ -79,6 +79,8 @@ A watcher subclasses `watchers.base.Watcher`, declares `name`, `entry_type` and 
 
 A watcher for an optional library declares it in `requires` (a module name such as `"flask_mail"`, or a tuple of them) and imports it inside `register`, never at module level, so `watchers/__init__.py` still loads without it. `Watcher.available()` checks the requirements with `importlib.util.find_spec`, and `Watcher.missing()` lists the ones not installed. When `LEEUWENHOEK_WATCHERS` is not set, `default_watchers()` enables every watcher in `AVAILABLE` that is available. A configured watcher whose requirement is missing is skipped with a warning.
 
+The exception watcher also chains `sys.excepthook` and `threading.excepthook`, so exceptions that nothing catches are recorded too: in scripts, in threads, and in `flask` CLI commands (Click only handles its own exceptions and lets the rest reach `sys.excepthook`). The previous hook is always called afterwards. The exception joins the batch that is current in the failing thread (a job running in a worker thread, for example); otherwise it is stored as `standalone`. A CLI command has no batch of its own yet, and by the time `sys.excepthook` runs its context is gone, so its exception is standalone. An exception is marked once recorded, so one that was already captured by the request path and then reaches a hook is not recorded twice. `unregister()` restores the previous hooks if they are still ours. If another hook was chained on top since, ours stays in the chain and only delegates, so several instances, or repeated `init_app` in tests, can be closed in any order.
+
 Planned watchers and their hooks are described in the [issues](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues?q=label%3Awatcher).
 
 ## Performance
