@@ -6,6 +6,7 @@ from .exception import ExceptionWatcher
 from .http_client import HttpClientWatcher
 from .log import LogWatcher
 from .mail import MailWatcher
+from .model import ModelWatcher
 from .query import QueryWatcher
 from .request import RequestWatcher
 from .template import TemplateWatcher
@@ -24,6 +25,7 @@ AVAILABLE: dict[str, type[Watcher]] = {
         CommandWatcher,
         HttpClientWatcher,
         CacheWatcher,
+        ModelWatcher,
     )
 }
 
