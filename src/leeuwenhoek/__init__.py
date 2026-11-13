@@ -18,7 +18,7 @@ from .filters import is_ignored
 from .models import Entry, jsonable
 from .storage import MemoryStorage, SQLAlchemyStorage, StorageDriver
 from .tags import Tagger, normalize
-from .watchers import AVAILABLE, Watcher
+from .watchers import AVAILABLE, Watcher, default_watchers
 from .watchers.dump import dump
 from .writer import Writer
 
@@ -67,10 +67,14 @@ class Leeuwenhoek:
         app.before_request(self._begin)
         app.teardown_request(self._end)
 
-        for name in cfg.watchers:
+        names = default_watchers() if cfg.watchers is None else cfg.watchers
+        for name in names:
             cls = AVAILABLE.get(name)
             if cls is None:
                 log.warning("Unknown watcher: %s", name)
+                continue
+            if missing := cls.missing():
+                log.warning("Skipping watcher %s: %s not installed", name, ", ".join(missing))
                 continue
             watcher = cls(self, engine) if name == "query" else cls(self)
             watcher.register(app)

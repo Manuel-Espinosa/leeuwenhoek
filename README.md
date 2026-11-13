@@ -70,6 +70,8 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `log` | Level, message, logger name, `extra` fields and `exc_info`, from a handler on the root logger |
 | `dump` | Whatever you pass to `dump()`, with the file and line it was called from |
 
+By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
+
 Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>`.
 
 ### `dump()`
@@ -104,7 +106,7 @@ Each setting is read from `app.config["LEEUWENHOEK_<KEY>"]` first, then from an 
 |---|---|---|
 | `LEEUWENHOEK_ENABLED` | `app.debug` | Master switch |
 | `LEEUWENHOEK_URL_PREFIX` | `/leeuwenhoek` | Where the panel is mounted. Requests under it are never recorded. |
-| `LEEUWENHOEK_WATCHERS` | `["request", "exception", "query", "log", "dump"]` | Watchers to enable |
+| `LEEUWENHOEK_WATCHERS` | every watcher whose library is installed | Watchers to enable. A listed watcher whose library is missing is skipped with a warning. |
 | `LEEUWENHOEK_IGNORE_PATHS` | `["/static*", "/favicon.ico", "/health*"]` | Glob patterns of paths that are not recorded |
 | `LEEUWENHOEK_HIDDEN_HEADERS` | `["authorization", "cookie", "x-api-key"]` | Headers replaced by `********` |
 | `LEEUWENHOEK_HIDDEN_PARAMS` | `["password", "password_confirmation", "token", "secret"]` | Keys replaced by `********` in bodies, query strings and sessions, at any depth |
