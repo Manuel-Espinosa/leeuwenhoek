@@ -1,0 +1,19 @@
+{#- Table rows of a listing, shared by the full page and the live-polling `rows` endpoint.
+    Expects `entries` and `entry_type` (None for the Batches listing). -#}
+{% from "leeuwenhoek/_macros.html" import time_ago with context %}
+{% if entry_type %}
+  {% import "leeuwenhoek/entries/" ~ entry_type ~ ".html" as t with context %}
+  {% for e in entries %}
+    <tr class="lw-row" data-id="{{ e.id }}" data-href="{{ url_for('leeuwenhoek.detail', slug=slug_for(entry_type), uuid=e.uuid) }}">{{ t.row(e) }}</tr>
+  {% endfor %}
+{% else %}
+  {# Batches: root entries of any type #}
+  {% for e in entries %}
+    {% import "leeuwenhoek/entries/" ~ e.type ~ ".html" as t with context %}
+    <tr class="lw-row" data-id="{{ e.id }}" data-href="{{ url_for('leeuwenhoek.batch', batch_id=e.batch_id) }}">
+      <td><span class="tag">{{ e.type }}</span></td>
+      <td>{{ t.summary(e) }}</td>
+      <td>{{ time_ago(e.created_at) }}</td>
+    </tr>
+  {% endfor %}
+{% endif %}

@@ -104,7 +104,10 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
 | `/leeuwenhoek/batch/<batch_id>` | A whole batch |
 | `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception |
+| `/leeuwenhoek/<type>/rows?after=<id>` | HTML `<tr>` rows of the entries newer than `<id>`, with the same filters as the listing (used by live polling) |
 | `/leeuwenhoek/api/status` | JSON: recording state and counts per type |
+
+Listings update live: every `LEEUWENHOEK_POLL_SECONDS` the panel fetches the new rows and puts them at the top of the table, and refreshes the counters in the menu. Polling pauses while the tab is hidden and doesn't add rows on an older page (`?before=`).
 
 The navbar has buttons to pause or resume recording and to clear all entries. Both use POST with the panel's own CSRF token. Apps using Flask-WTF don't need any changes, because the panel is exempted from Flask-WTF's CSRF check.
 
@@ -141,6 +144,7 @@ Each setting is read from `app.config["LEEUWENHOEK_<KEY>"]` first, then from an 
 | `LEEUWENHOEK_PRUNE_INTERVAL_MINUTES` | `30` | How often to prune |
 | `LEEUWENHOEK_BASIC_AUTH` | `None` | `("user", "password")` to protect the panel |
 | `LEEUWENHOEK_PAGE_SIZE` | `50` | Rows per page in the panel |
+| `LEEUWENHOEK_POLL_SECONDS` | `4` | How often the panel polls for new rows and menu counts. `0` disables live polling. |
 | `LEEUWENHOEK_BULMA_CDN` | `False` | Load Bulma from a CDN instead of the bundled copy |
 
 ## Access control

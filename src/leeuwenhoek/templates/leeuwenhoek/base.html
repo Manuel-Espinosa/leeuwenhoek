@@ -23,7 +23,8 @@
   {% endif %}
   <link rel="stylesheet" href="{{ url_for('leeuwenhoek.static', filename='leeuwenhoek/leeuwenhoek.css') }}">
 </head>
-<body>
+{#- Live polling is configured through these attributes; without them leeuwenhoek.js never polls. #}
+<body{% if poll_seconds %} data-lw-poll="{{ poll_seconds }}" data-lw-status-url="{{ url_for('leeuwenhoek.status') }}"{% endif %}>
   <nav class="navbar is-dark" role="navigation">
     <div class="navbar-brand">
       <a class="navbar-item has-text-weight-bold" href="{{ url_for('leeuwenhoek.home') }}">🔬 Leeuwenhoek</a>
@@ -73,7 +74,7 @@
             {% for s in sections %}
               <li>
                 <a href="{{ url_for('leeuwenhoek.listing', slug=s.slug) }}" class="{{ 'is-active' if s.slug == slug|default('') }}">
-                  {{ s.label }} <span class="tag is-rounded is-pulled-right">{{ s.count }}</span>
+                  {{ s.label }} <span class="tag is-rounded is-pulled-right" data-count="{{ s.key }}">{{ s.count }}</span>
                 </a>
               </li>
             {% endfor %}
