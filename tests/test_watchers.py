@@ -155,3 +155,18 @@ def test_query_under_threshold_is_not_slow(monkeypatch, app, engine):
     req = entries(ext, "request")[0]
     assert "slow</span>" not in client.get(f"/leeuwenhoek/requests/{req.uuid}").text
     ext.close()
+
+
+def test_origin_survives_a_project_directory_named_leeuwenhoek():
+    from types import FunctionType
+
+    from leeuwenhoek.watchers.query import origin
+
+    def call():
+        return origin()
+
+    path = "/srv/leeuwenhoek/app/views.py"
+    moved = FunctionType(
+        call.__code__.replace(co_filename=path), globals(), closure=call.__closure__
+    )
+    assert moved()[0] == path
