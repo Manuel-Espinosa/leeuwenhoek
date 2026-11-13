@@ -25,6 +25,7 @@ from werkzeug.wrappers import Response as BaseResponse
 from .auth import CSRF_COOKIE, check_access, csrf_token, verify_csrf
 from .models import Entry, utcnow
 from .storage.base import Page
+from .watchers.query import KEYWORD_RE, n_plus_one_summary
 
 bp = Blueprint(
     "leeuwenhoek",
@@ -159,58 +160,6 @@ def lw_json(value: Any) -> str:
     return json.dumps(value, indent=2, default=repr, ensure_ascii=False)
 
 
-_KEYWORDS = [
-    "SELECT",
-    "INSERT",
-    "INTO",
-    "UPDATE",
-    "DELETE",
-    "FROM",
-    "WHERE",
-    "AND",
-    "OR",
-    "NOT",
-    "NULL",
-    "IS",
-    "IN",
-    "LIKE",
-    "JOIN",
-    "LEFT",
-    "RIGHT",
-    "INNER",
-    "OUTER",
-    "ON",
-    "GROUP",
-    "BY",
-    "ORDER",
-    "HAVING",
-    "LIMIT",
-    "OFFSET",
-    "AS",
-    "VALUES",
-    "SET",
-    "CREATE",
-    "TABLE",
-    "DROP",
-    "ALTER",
-    "INDEX",
-    "DISTINCT",
-    "COUNT",
-    "UNION",
-    "ALL",
-    "CASE",
-    "WHEN",
-    "THEN",
-    "ELSE",
-    "END",
-    "BETWEEN",
-    "EXISTS",
-    "ASC",
-    "DESC",
-    "PRAGMA",
-    "RETURNING",
-]
-_KEYWORD_RE = re.compile(r"\b(" + "|".join(_KEYWORDS) + r")\b", re.IGNORECASE)
 _CLAUSE_RE = re.compile(
     r"\s+(FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|LEFT JOIN|INNER JOIN|JOIN)\b", re.IGNORECASE
 )
@@ -223,7 +172,7 @@ def lw_sql(sql: str | None) -> Markup:
         return Markup("")
     text = _CLAUSE_RE.sub(lambda m: "\n" + m.group(1), sql.strip())
     html = str(escape(text))
-    return Markup(_KEYWORD_RE.sub(r'<span class="lw-kw">\1</span>', html))
+    return Markup(KEYWORD_RE.sub(r'<span class="lw-kw">\1</span>', html))
 
 
 # ---------------------------------------------------------------------- views
@@ -340,7 +289,11 @@ def family(hash: str) -> str:
 
 
 def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, Any]]:
-    """Group by type and compute each group's count, total time and slow entries."""
+    """Group by type and compute each group's count, total time and slow entries.
+
+    The query group also gets ``n_plus_one``: the repeated statements of the whole batch (the
+    skipped entry included) with their counts.
+    """
     groups: dict[str, list[Entry]] = {}
     for entry in entries:
         if skip is not None and entry.uuid == skip.uuid:
@@ -355,6 +308,7 @@ def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, An
             "count": len(items),
             "total_ms": sum(i.content.get("duration_ms") or 0 for i in items) or None,
             "slow": sum(1 for i in items if i.content.get("slow")),
+            "n_plus_one": n_plus_one_summary(entries) if type_ == "query" else [],
         }
         for type_, items in sorted(groups.items(), key=lambda kv: order.index(kv[0]))
     ]
