@@ -28,7 +28,7 @@ src/leeuwenhoek/
 ├── blueprint.py     # Panel views and Jinja filters
 ├── cli.py           # flask leeuwenhoek ...
 ├── storage/         # StorageDriver interface, SQLAlchemy driver, in-memory driver
-├── watchers/        # One module per entry type: request, exception, query, log, dump
+├── watchers/        # One module per entry type: request, exception, query, log, dump, template
 ├── templates/leeuwenhoek/
 └── static/leeuwenhoek/   # bundled Bulma, CSS and vanilla JS
 ```
@@ -80,6 +80,8 @@ A watcher subclasses `watchers.base.Watcher`, declares `name`, `entry_type` and 
 A watcher for an optional library declares it in `requires` (a module name such as `"flask_mail"`, or a tuple of them) and imports it inside `register`, never at module level, so `watchers/__init__.py` still loads without it. `Watcher.available()` checks the requirements with `importlib.util.find_spec`, and `Watcher.missing()` lists the ones not installed. When `LEEUWENHOEK_WATCHERS` is not set, `default_watchers()` enables every watcher in `AVAILABLE` that is available. A configured watcher whose requirement is missing is skipped with a warning.
 
 The exception watcher also chains `sys.excepthook` and `threading.excepthook`, so exceptions that nothing catches are recorded too: in scripts, in threads, and in `flask` CLI commands (Click only handles its own exceptions and lets the rest reach `sys.excepthook`). The previous hook is always called afterwards. The exception joins the batch that is current in the failing thread (a job running in a worker thread, for example); otherwise it is stored as `standalone`. A CLI command has no batch of its own yet, and by the time `sys.excepthook` runs its context is gone, so its exception is standalone. An exception is marked once recorded, so one that was already captured by the request path and then reaches a hook is not recorded twice. `unregister()` restores the previous hooks if they are still ours. If another hook was chained on top since, ours stays in the chain and only delegates, so several instances, or repeated `init_app` in tests, can be closed in any order.
+
+The template watcher listens to Flask's `before_render_template` and `template_rendered` signals for the app. They fire once per top-level render (`render_template`, `render_template_string`, `stream_template`), not for `{% extends %}` or `{% include %}`. A render can start another one (a context processor or a filter calling `render_template`), so starts are kept in a per-context stack and each `template_rendered` is paired with the innermost start for the same context dict, which both signals receive. Only the dict's `id` is stored, so a render that raised (and never sent `template_rendered`) keeps no reference to its context; the stack is capped so those leftovers stay bounded. Templates under `leeuwenhoek/` are skipped in both handlers, so rendering the panel never creates entries. A streamed template finishes rendering after the request batch has closed, so it is stored as `standalone`. Leeuwenhoek connects to these signals nowhere else, so nothing is recorded twice. `unregister()` disconnects both.
 
 Planned watchers and their hooks are described in the [issues](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues?q=label%3Awatcher).
 

@@ -70,10 +70,11 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `exception` | Class, message, full traceback with a code snippet for each frame. Repeated exceptions are grouped into **families** (same class, file and line). Also captures exceptions turned into 5xx responses by your own error handlers, and uncaught exceptions in scripts, CLI commands and threads (through `sys.excepthook` and `threading.excepthook`, which are chained and restored by `lw.close()`). |
 | `log` | Level, message, logger name, `extra` fields and `exc_info`, from a handler on the root logger |
 | `dump` | Whatever you pass to `dump()`, with the file and line it was called from |
+| `template` | Each Jinja template rendered with `render_template`, `render_template_string` or `stream_template`: name, file, context keys (never their values, and without Flask's own `g`, `request` and `session`) and render duration. Templates pulled in with `{% extends %}` or `{% include %}` are part of the top-level render, not separate entries. Leeuwenhoek's own templates are never recorded. |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow.
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>` and templates `template:<name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow.
 
 ### `dump()`
 
