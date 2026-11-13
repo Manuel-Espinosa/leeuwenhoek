@@ -1,0 +1,28 @@
+{% from "leeuwenhoek/_macros.html" import duration, time_ago, json_tree %}
+{% macro exit_tag(code) -%}
+  <span class="tag {{ 'is-success' if code == 0 else 'is-danger' }}">{{ code }}</span>
+{%- endmacro %}
+{% macro head() %}<th>Command</th><th>Exit code</th><th>Duration</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td><code>{{ e.content.name }}</code></td>
+  <td>{{ exit_tag(e.content.exit_code) }}</td>
+  <td>{{ duration(e.content.duration_ms) }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}<code>{{ e.content.name }}</code> {{ exit_tag(e.content.exit_code) }} {{ duration(e.content.duration_ms) }}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <div class="level">
+    <div class="level-item has-text-centered"><div><p class="heading">Command</p><p class="title is-5"><code>{{ c.name }}</code></p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Exit code</p><p class="title is-5">{{ exit_tag(c.exit_code) }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Duration</p><p class="title is-5">{{ c.duration_ms | lw_duration }}</p></div></div>
+  </div>
+  <div class="lw-tabs">
+    <div class="tabs"><ul>
+      <li class="is-active"><a data-tab="arguments">Arguments</a></li>
+      <li><a data-tab="options">Options</a></li>
+    </ul></div>
+    <div data-panel="arguments">{{ json_tree(c.arguments, true) }}</div>
+    <div data-panel="options" hidden>{{ json_tree(c.options, true) }}</div>
+  </div>
+{% endmacro %}

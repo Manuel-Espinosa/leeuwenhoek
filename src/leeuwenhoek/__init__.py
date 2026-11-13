@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import atexit
+import contextvars
 import logging
 import random
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from flask import Flask, current_app, has_app_context, request
 
 from . import context
 from .config import Config
-from .context import Batch, current_batch, is_internal
+from .context import Batch, BatchKind, current_batch, is_internal
 from .filters import EntryFilter, is_ignored
 from .models import Entry, jsonable
 from .storage import MemoryStorage, SQLAlchemyStorage, StorageDriver
@@ -162,27 +164,48 @@ class Leeuwenhoek:
         path = request.path
         prefix = self.config.url_prefix.rstrip("/")
         skip = (
-            not self.enabled()
-            or path == prefix
+            path == prefix
             or path.startswith(prefix + "/")
             or is_ignored(path, self.config.ignore_paths)
         )
+        _, token = self.open_batch("request", skip=skip)
+        request.environ[TOKEN] = token
+
+    def _end(self, exc: BaseException | None) -> None:
+        token = request.environ.pop(TOKEN, None)
+        batch = current_batch()
+        if batch is not None:
+            self.close_batch(batch, token, exc)
+        else:
+            _reset(token)
+
+    def open_batch(
+        self, kind: BatchKind, *, parent_id: str | None = None, skip: bool = False
+    ) -> tuple[Batch, contextvars.Token]:
+        """Make a new batch current; pair it with :meth:`close_batch`, or use :meth:`batch`.
+
+        The batch records unless ``skip`` is true, Leeuwenhoek is disabled, recording is paused
+        or the batch is sampled out. One that doesn't record is still current, so watchers can
+        check ``batch.recording`` cheaply and nothing inside becomes ``standalone``.
+        """
         cfg = self.config
         sampled_out = (
             not cfg.only_errors and cfg.sample_rate < 1 and random.random() >= cfg.sample_rate
         )
         batch = Batch(
-            kind="request",
-            recording=not skip and not sampled_out and self.is_recording(),
-            max_entries=self.config.max_entries_per_batch,
+            kind=kind,
+            parent_id=parent_id,
+            recording=not skip and self.enabled() and not sampled_out and self.is_recording(),
+            max_entries=cfg.max_entries_per_batch,
         )
-        request.environ[TOKEN] = context.start_batch(batch)
+        return batch, context.start_batch(batch)
 
-    def _end(self, exc: BaseException | None) -> None:
-        token = request.environ.pop(TOKEN, None)
-        batch = current_batch()
+    def close_batch(
+        self, batch: Batch, token: contextvars.Token | None, exc: BaseException | None = None
+    ) -> None:
+        """Run the ``on_finish`` callbacks, persist the batch and restore the previous one."""
         try:
-            if batch is not None and batch.recording:
+            if batch.recording:
                 # Callbacks run while the batch is still current so their entries join it.
                 for callback in self.on_finish:
                     try:
@@ -192,11 +215,26 @@ class Leeuwenhoek:
                 if not self.config.only_errors or has_error(batch, exc):
                     self.persist(batch)
         finally:
-            if token is not None:
-                try:
-                    context.end_batch(token)
-                except ValueError:  # different Context (async views): clear anyway
-                    context._current.set(None)
+            _reset(token)
+
+    @contextmanager
+    def batch(
+        self, kind: BatchKind, *, parent_id: str | None = None, skip: bool = False
+    ) -> Iterator[Batch]:
+        """Group everything recorded inside the block (a job, a command) in one batch.
+
+        The batch is persisted when the block ends, also when it raises; the exception is passed
+        to the ``on_finish`` callbacks and propagates.
+        """
+        batch, token = self.open_batch(kind, parent_id=parent_id, skip=skip)
+        exc: BaseException | None = None
+        try:
+            yield batch
+        except BaseException as e:
+            exc = e
+            raise
+        finally:
+            self.close_batch(batch, token, exc)
 
     def record(
         self,
@@ -289,6 +327,16 @@ class Leeuwenhoek:
 
     def prune(self, hours: float | None = None) -> int:
         return self.storage.prune(self.config.prune_hours if hours is None else hours)
+
+
+def _reset(token: contextvars.Token | None) -> None:
+    """Restore the batch that was current before ``token`` was set."""
+    if token is None:
+        return
+    try:
+        context.end_batch(token)
+    except ValueError:  # different Context (async views): clear anyway
+        context._current.set(None)
 
 
 def has_error(batch: Batch, exc: BaseException | None) -> bool:
