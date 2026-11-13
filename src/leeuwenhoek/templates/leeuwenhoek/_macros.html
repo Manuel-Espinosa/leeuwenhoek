@@ -57,14 +57,14 @@
 {% macro traceback(frames, text) -%}
   {% for f in frames | reverse %}
     <details class="lw-frame" {% if loop.first %}open{% endif %}>
-      <summary><code>{{ f.file }}:{{ f.line }}</code> en <strong>{{ f.function }}</strong></summary>
+      <summary><code>{{ f.file }}:{{ f.line }}</code> in <strong>{{ f.function }}</strong></summary>
       {% if f.snippet %}
         <pre class="lw-snippet">{% for l in f.snippet %}<span class="{{ 'lw-current' if l.current }}"><span class="lw-ln">{{ l.line }}</span> {{ l.code }}
 </span>{% endfor %}</pre>
       {% else %}<pre class="lw-snippet">{{ f.code }}</pre>{% endif %}
     </details>
   {% endfor %}
-  <details><summary>Traceback completo</summary><pre>{{ text }}</pre></details>
+  <details><summary>Full traceback</summary><pre>{{ text }}</pre></details>
 {%- endmacro %}
 
 {% macro pagination(older_url, newer_url) -%}

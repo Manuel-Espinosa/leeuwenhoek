@@ -1,6 +1,6 @@
 # flask-leeuwenhoek
 
-A debugging microscope that lives inside your Flask app. Leeuwenhoek records what happens during each request (the request itself, SQL queries, exceptions, log lines and ad-hoc dumps), groups it all by request, and shows it in a panel at `/leeuwenhoek`.
+A debugging microscope that lives inside your Flask app. Leeuwenhoek records what happens during each request, CLI command and background job (the request itself, SQL queries, exceptions, log lines, ad-hoc dumps, outgoing HTTP calls, cache and Redis operations, mail, ORM changes and more), groups it all by batch, and shows it in a panel at `/leeuwenhoek`.
 
 - **No separate service.** It is a Blueprint plus a few hooks. The panel is rendered on the server with Jinja and Bulma, with no frontend build and no CDN.
 - **No changes to your code.** Everything is captured through Flask hooks, signals, SQLAlchemy events and a logging handler.
@@ -8,7 +8,7 @@ A debugging microscope that lives inside your Flask app. Leeuwenhoek records wha
 - **Its own database.** Entries go to a separate SQLAlchemy engine (SQLite by default, Postgres in production), so they never mix with your app's data or record themselves.
 - **Safe enough for staging.** Sensitive values are redacted, payloads are truncated, and writes happen in a background thread with a bounded queue. Sampling, an only-errors mode and access control are built in.
 
-> **Status:** early (v0.1). See the [roadmap](#roadmap) for what's coming.
+> **Status:** early (v0.1, not on PyPI yet). See the [roadmap](#roadmap) for what has shipped and what's coming.
 
 ## Installation
 
@@ -429,10 +429,17 @@ lw.close()  # remove global handlers and listeners
 
 ## Roadmap
 
-Planned work is tracked in [GitHub issues](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues):
+Work is tracked in [GitHub issues](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues) and grouped into milestones.
 
-- **[v0.2](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/milestone/1):** watchers for outgoing HTTP, templates, CLI commands, mail, cache and Celery jobs. Slow-query and N+1 detection, `lw.filter()`, live polling and dark mode.
-- **[v0.3](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/milestone/2):** watchers for RQ, ORM models, Redis, scheduled tasks and blinker events. Retrying failed jobs, resolving exceptions, and publishing to PyPI.
+Shipped (on `main`, not yet released to PyPI):
+
+- **[v0.2](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/milestone/1)** (complete): watchers for outgoing HTTP, templates, CLI commands, mail, cache and Celery jobs; slow-query and N+1 detection; `lw.filter()`; capture of exceptions outside requests (`sys.excepthook`); live polling; dark mode; auto-detection of available watchers; a test that the wheel ships templates and static files; a request overhead benchmark; mypy and ruff format in CI.
+- **[v0.3](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/milestone/2)** (in progress): watchers for RQ jobs, ORM models, Redis, scheduled tasks and blinker events; peak memory per request; resolving exception families.
+
+Upcoming in v0.3:
+
+- Retrying failed jobs from the panel ([#21](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues/21)).
+- Publishing to PyPI ([#23](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues/23)).
 
 Out of scope: distributed tracing or APM (use OpenTelemetry), aggregated metrics, and alerting.
 
