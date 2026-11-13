@@ -40,3 +40,6 @@ line-length = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: slow tests such as building the wheel (deselect with -m \"not slow\")",
+]
