@@ -44,6 +44,11 @@ def test_track_memory_off_by_default_and_read_from_env(monkeypatch):
     assert cfg(monkeypatch, {"LEEUWENHOEK_TRACK_MEMORY": "true"}).track_memory is True
 
 
+def test_slow_query_threshold_default_and_env(monkeypatch):
+    assert cfg(monkeypatch).slow_query_ms == 100
+    assert cfg(monkeypatch, {"LEEUWENHOEK_SLOW_QUERY_MS": "250"}).slow_query_ms == 250
+
+
 def test_database_url_from_parts(monkeypatch):
     c = cfg(
         monkeypatch,
