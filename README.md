@@ -65,7 +65,7 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 
 | Watcher | Captures |
 |---|---|
-| `request` | Method, URL, URL rule, endpoint, blueprint, view args, IP, headers, query string, body, session, user, status, response headers, response body (JSON/text only), duration |
+| `request` | Method, URL, URL rule, endpoint, blueprint, view args, IP, headers, query string, body, session, user, status, response headers, response body (JSON/text only), duration, and optionally peak memory |
 | `query` | SQL, parameters, duration, and the file and line in *your* code that ran the query. Queries slower than `LEEUWENHOEK_SLOW_QUERY_MS` are flagged as slow. |
 | `exception` | Class, message, full traceback with a code snippet for each frame. Repeated exceptions are grouped into **families** (same class, file and line). Also captures exceptions turned into 5xx responses by your own error handlers, and uncaught exceptions in scripts, CLI commands and threads (through `sys.excepthook` and `threading.excepthook`, which are chained and restored by `lw.close()`). |
 | `log` | Level, message, logger name, `extra` fields and `exc_info`, from a handler on the root logger |
@@ -86,6 +86,14 @@ def checkout():
     dump(cart)  # shows up in the Dumps section and in this request's batch
     return "ok"
 ```
+
+### Peak memory
+
+Set `LEEUWENHOEK_TRACK_MEMORY=true` to record how much memory each request allocated at its peak. It is shown as **Peak memory** in the request detail and stored as `memory_peak_kb` in the entry.
+
+It uses `tracemalloc`, which is off by default because it slows down every allocation while it runs (about 1 ms more per request in the [benchmark](docs/architecture.md#benchmark)). Leeuwenhoek starts tracing when a recorded request begins and stops it when none is running. If tracing was already started by something else (`python -X tracemalloc`, a profiler), it is left running, and only memory allocated during the request counts.
+
+`tracemalloc` measures the whole process, not one thread. With concurrent requests (a threaded server, gevent), each peak includes the other requests in flight, so treat the numbers as approximate there. They are exact when requests are handled one at a time.
 
 ## The panel
 
@@ -121,6 +129,7 @@ Each setting is read from `app.config["LEEUWENHOEK_<KEY>"]` first, then from an 
 | `LEEUWENHOEK_REQUEST_TAGS` | `{}` | Tags built from request data, see [Tags](#tags) |
 | `LEEUWENHOEK_SAMPLE_RATE` | `1.0` | Fraction of requests to record (0–1) |
 | `LEEUWENHOEK_ONLY_ERRORS` | `False` | Keep only batches with an exception or a 5xx response |
+| `LEEUWENHOEK_TRACK_MEMORY` | `False` | Record each request's peak memory with `tracemalloc`, see [Peak memory](#peak-memory) |
 | `LEEUWENHOEK_HANDLED_EXCEPTION_MIN_STATUS` | `500` | Record exceptions handled by your error handlers when the response status is at least this |
 | `LEEUWENHOEK_STORAGE` | `sqlalchemy` | `sqlalchemy` or `memory` (for tests) |
 | `LEEUWENHOEK_DATABASE_URI` | `sqlite:///<instance_path>/leeuwenhoek.db` | Storage database, separate from your app's |

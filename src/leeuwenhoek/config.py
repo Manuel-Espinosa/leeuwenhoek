@@ -39,6 +39,7 @@ DEFAULTS: dict[str, Any] = {
     "HANDLED_EXCEPTION_MIN_STATUS": 500,  # capture exceptions turned into responses >= this
     "FLUSH_TIMEOUT": 5.0,  # seconds to wait for pending writes at exit
     "REQUEST_TAGS": {},  # {"tag_name": "dotted.path" | ["path", ...]}
+    "TRACK_MEMORY": False,  # record each request's peak memory with tracemalloc
     "SLOW_QUERY_MS": 100,  # queries slower than this are flagged as slow
 }
 
