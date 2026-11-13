@@ -20,6 +20,7 @@ http = ["requests>=2.31", "httpx>=0.27"]
 cache = ["flask-caching>=2.0"]
 redis = ["redis>=5.0"]
 sched = ["apscheduler>=3.10,<4"]
+rq = ["rq>=1.15"]
 
 [project.entry-points."flask.commands"]
 leeuwenhoek = "leeuwenhoek.cli:cli"
@@ -46,6 +47,7 @@ dev = [
     "redis>=8.1.0",
     "fakeredis>=2.40.0",
     "apscheduler>=3.10,<4",
+    "rq>=3.0.0",
 ]
 
 [tool.ruff]

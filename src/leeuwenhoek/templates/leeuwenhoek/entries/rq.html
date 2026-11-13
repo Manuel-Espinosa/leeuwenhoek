@@ -1,0 +1,40 @@
+{% from "leeuwenhoek/_macros.html" import duration, time_ago, json_tree %}
+{% macro status(s) -%}
+  {%- set cls = {'finished': 'is-success', 'failed': 'is-danger', 'queued': 'is-info', 'deferred': 'is-warning', 'scheduled': 'is-warning'}.get(s, '') -%}
+  <span class="tag {{ cls }}">{{ s }}</span>
+{%- endmacro %}
+{% macro head() %}<th>Function</th><th>Queue</th><th>Status</th><th>Duration</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td><code>{{ e.content.function }}</code></td>
+  <td><span class="tag">{{ e.content.queue }}</span></td>
+  <td>{{ status(e.content.status) }}</td>
+  <td>{{ duration(e.content.duration_ms) if e.content.event == 'perform' else '—' }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}<code>{{ e.content.function }}</code> {{ status(e.content.status) }}{% if e.content.event == 'perform' %} {{ duration(e.content.duration_ms) }}{% endif %}{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <div class="level">
+    <div class="level-item has-text-centered"><div><p class="heading">Function</p><p class="title is-5"><code>{{ c.function }}</code></p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Queue</p><p class="title is-5">{{ c.queue }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Status</p><p class="title is-5">{{ status(c.status) }}</p></div></div>
+    {% if e.content.event == 'perform' %}
+    <div class="level-item has-text-centered"><div><p class="heading">Duration</p><p class="title is-5">{{ c.duration_ms | lw_duration }}</p></div></div>
+    {% endif %}
+  </div>
+  <p class="mb-3">Job <code>{{ c.job_id }}</code>
+    · <a href="{{ url_for('leeuwenhoek.listing', slug='rq', tag='rq_job:' ~ c.job_id) }}">{{ 'Dispatch and executions' if e.content.event == 'perform' else 'Executions' }} of this job</a>
+    {%- if e.parent_batch_id %} · <a href="{{ url_for('leeuwenhoek.batch', batch_id=e.parent_batch_id) }}">Enqueued by batch {{ e.parent_batch_id[:8] }}</a>{% endif %}</p>
+  {% if c.error %}
+  <div class="notification is-danger is-light"><strong>{{ c.error['class'] }}</strong>: {{ c.error.message }}</div>
+  {% endif %}
+  {% if c.args_redacted %}<p class="is-size-7 has-text-grey mb-2">Some arguments were redacted or truncated.</p>{% endif %}
+  <div class="lw-tabs">
+    <div class="tabs"><ul>
+      <li class="is-active"><a data-tab="args">Arguments</a></li>
+      <li><a data-tab="kwargs">Keyword arguments</a></li>
+    </ul></div>
+    <div data-panel="args">{{ json_tree(c.args, true) }}</div>
+    <div data-panel="kwargs" hidden>{{ json_tree(c.kwargs, true) }}</div>
+  </div>
+{% endmacro %}

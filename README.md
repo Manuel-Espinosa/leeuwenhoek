@@ -34,6 +34,8 @@ Add the `http` extra to install [requests](https://requests.readthedocs.io/) and
 
 Add the `sched` extra (`flask-leeuwenhoek[sched]`) to record [APScheduler](https://apscheduler.readthedocs.io/en/3.x/) job runs. Only APScheduler 3.x is supported (`apscheduler>=3.10,<4`); version 4 has a different API. The watcher turns on by itself when APScheduler is installed.
 
+Add the `rq` extra (`flask-leeuwenhoek[rq]`) to record [RQ](https://python-rq.org/) jobs (RQ 1.15 or newer). The watcher turns on by itself when RQ is installed.
+
 ## Quickstart
 
 ```python
@@ -89,10 +91,11 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `event` | Blinker signals: the Flask signals in `LEEUWENHOEK_SIGNALS` (by default `message_flashed`) and your own signals added with `lw.watch_signal()`: signal name, sender (class name or truncated `repr`) and keyword arguments (redacted with `LEEUWENHOEK_HIDDEN_PARAMS`, truncated to `LEEUWENHOEK_MAX_BODY_KB`), tagged `event:<name>`. See [Signals](#signals). |
 | `redis` | Commands sent with [redis-py](https://redis.readthedocs.io/) (`redis.Redis` and `redis.asyncio.Redis`): command, arguments (redacted and truncated), server, database, duration and the error if the command raised. A pipeline is one entry with its list of commands. See [Redis](#redis). |
 | `schedule` | Each run of an APScheduler 3.x job: id, name, function, trigger, executor, scheduled and next run time, arguments (redacted with `LEEUWENHOEK_HIDDEN_PARAMS`), result (`repr`, truncated) or exception, and duration; also runs missed past their misfire grace time and runs skipped because the job reached `max_instances`. Each run gets its own batch, see [Scheduled jobs](#scheduled-jobs). Needs the `sched` extra. |
+| `rq` | RQ jobs: function path, queue, job id, status, arguments and keyword arguments (redacted with `LEEUWENHOEK_HIDDEN_PARAMS`, truncated to `LEEUWENHOEK_MAX_BODY_KB`), duration and exception. Each execution gets its own batch, linked to the request that enqueued the job, see [RQ jobs](#rq-jobs). Needs the `rq` extra. |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`, scheduled job runs `job:<id>` and `job_status:<success|error|missed|skipped>`. Log entries get `level:<LEVEL>`, templates `template:<name>` and ORM changes `model:<Name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`, RQ entries `rq_job:<id>`, `rq_queue:<name>` and `rq_status:<status>`, scheduled job runs `job:<id>` and `job_status:<success|error|missed|skipped>`. Log entries get `level:<LEVEL>`, templates `template:<name>` and ORM changes `model:<Name>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow. Repeated queries get `n+1` (see [N+1 queries](#n1-queries)).
 
 ### N+1 queries
 
@@ -199,6 +202,30 @@ APScheduler logs `Running job ...` before a run and `Job ... raised an exception
 
 With the `ProcessPoolExecutor`, the job runs in another process and is **not recorded**: Leeuwenhoek's wrapper does not cross the process boundary, and the child process gets the original job. Use a thread pool (the default) or record from inside the job. Celery beat is not part of this watcher: scheduled Celery tasks are recorded by the Celery watcher.
 
+### RQ jobs
+
+Jobs are recorded twice, as RQ sees them:
+
+- **The dispatch**: `queue.enqueue(...)` (or `enqueue_call`, or `enqueue_job` with a job built by `Job.create`) records an `rq` entry with `event: "enqueue"` in the current batch, so a request's detail lists the jobs it enqueued, and stores the batch id in `job.meta["leeuwenhoek_parent_batch_id"]`. Its status is `queued`, `deferred` for a job waiting on a dependency, or the outcome for a synchronous queue. Outside a batch (a script), it is stored as `standalone`.
+- **Each execution**: the worker runs the job in a new batch (`kind="job"`) whose `parent_batch_id` is the dispatching batch. Its root entry (`event: "perform"`) has the status `finished` or `failed`, the duration and, on failure, the exception class and message. Queries, logs, HTTP calls and the exception raised by the job join this batch, and the job's detail links back to the request. A retried job gets one batch per attempt.
+
+The `rq_job:<id>` tag ties the dispatch and every execution of one job together: the job detail links to them.
+
+```python
+queue = Queue(connection=redis)
+
+
+@app.post("/reports")
+def create_report():
+    # Recorded kwargs: {"report_id": 7, "token": "********"}
+    queue.enqueue(build_report, report_id=7, token="abc")
+    return "", 202
+```
+
+The worker must create the app (and so call `Leeuwenhoek.init_app`) before it starts, for example with a small script that builds the app and then runs `Worker([queue], connection=redis).work()`. Forking workers (the default `Worker`), `SimpleWorker` and `Queue(is_async=False)` are all covered. A forked work horse ends with `os._exit()`, which skips the `atexit` flush, so the watcher writes the job's batch before handing control back to RQ (waiting up to `LEEUWENHOEK_FLUSH_TIMEOUT`). The worker's own work between jobs (polling, heartbeats, registry cleanup, its log lines) is never recorded. A work horse killed by RQ (`SIGKILL` after a hard timeout) records nothing. Jobs that RQ moves on its own (the scheduler enqueuing a job scheduled with `enqueue_at`, a dependency becoming ready, a retry) are not recorded again as dispatches, only when they run.
+
+`args` and `kwargs` hold the job's original arguments when `args_redacted` is `false`: nothing was masked, truncated or turned into a string to fit in JSON. When it is `true`, they are only for display. `job.description` is not stored, because it repeats the arguments unredacted.
+
 ### Peak memory
 
 Set `LEEUWENHOEK_TRACK_MEMORY=true` to record how much memory each request allocated at its peak. It is shown as **Peak memory** in the request detail and stored as `memory_peak_kb` in the entry.
@@ -211,10 +238,10 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`, `/models`, `/events`, `/redis`, `/schedule`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`, `/models`, `/events`, `/redis`, `/schedule`, `/rq`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
-| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request, command or scheduled job run on top |
+| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request, command or scheduled job run or RQ job on top |
 | `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception, with a Resolve / Reopen button |
 | `POST /leeuwenhoek/exceptions/family/<hash>/resolve` (`/reopen`) | Marks the family as resolved (or open again); needs the CSRF token |
 | `/leeuwenhoek/<type>/rows?after=<id>` | HTML `<tr>` rows of the entries newer than `<id>`, with the same filters as the listing (used by live polling) |
