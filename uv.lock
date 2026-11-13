@@ -95,6 +95,31 @@ wheels = [
 ]
 
 [[package]]
+name = "cachelib"
+version = "0.14.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/a5/5eb041dbee71766704d44cf5dfb6950ab018be0fd02cd763ade09869e33c/cachelib-0.14.0.tar.gz", hash = "sha256:73fedcadd0ba818fb2bb9f3c7cd5fcc2a71e86286f1842f55f28d500faee17f1", size = 170320, upload-time = "2026-05-09T16:16:02.896Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c7/0e/5493f2078dece836979f4e28e3b2066064a6d66691d4b0888efc7c62f702/cachelib-0.14.0-py3-none-any.whl", hash = "sha256:4671000b032baa8fac47ad19850f4f522785cee764b4e04c5cfe8955a18d67de", size = 22746, upload-time = "2026-05-09T16:16:01.68Z" },
+]
+
+[[package]]
+name = "cachelib"
+version = "0.17.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.15'",
+    "python_full_version >= '3.11' and python_full_version < '3.15'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/67/e8/f7e968e40ed6c07276a5ab20bda22e9ed6a3f152292787995f0d5ad2ef16/cachelib-0.17.2.tar.gz", hash = "sha256:583958fcf24a89b8fda57a4d9439162dfcb81a3a6199bcab7154b9844842bcdf", size = 180894, upload-time = "2026-11-10T06:02:46.952Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9b/bb/806d17468f8cda4810fee10ef1fb88d8967fbc97efff5d71c9cfe48a8758/cachelib-0.17.2-py3-none-any.whl", hash = "sha256:0618fe23be4dd804c0d971beccbfed7a8749c77cfd3fa033b6a9b9646b5d114c", size = 35481, upload-time = "2026-11-10T06:02:45.616Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.10.23"
 source = { registry = "https://pypi.org/simple" }
@@ -580,6 +605,39 @@ wheels = [
 ]
 
 [[package]]
+name = "flask-caching"
+version = "2.4.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
+dependencies = [
+    { name = "cachelib", version = "0.14.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "flask" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/89/15/d2852e86419c6c1416cba00c177b2cf609b5c2935372933684f84111c631/flask_caching-2.4.1.tar.gz", hash = "sha256:ecef4ca80b9cb1fa01d461373a0fce441527cd57eecee1aa71c1f6d750d7ff77", size = 165380, upload-time = "2026-07-08T19:23:57.264Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/e3/ad7572c7f00b1286f2fc2a387f01b62bb46b59c5f91536093eae57889adb/flask_caching-2.4.1-py3-none-any.whl", hash = "sha256:5f5555d610ec1f230c8200ae00c1c723ee562f657c22f896b806f4689513b952", size = 28977, upload-time = "2026-07-08T19:23:55.68Z" },
+]
+
+[[package]]
+name = "flask-caching"
+version = "2.5.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.15'",
+    "python_full_version >= '3.11' and python_full_version < '3.15'",
+]
+dependencies = [
+    { name = "cachelib", version = "0.17.2", source = { registry = "https://pypi.org/simple" } },
+    { name = "flask" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a2/74/37c0cfc97444bc639a2854808c55ef61266c3637ab0a64c794b9f6ea1649/flask_caching-2.5.1.tar.gz", hash = "sha256:f75b451fde3faac0e278da72263818134deca8c4ba6bb07b9b3b238991368dae", size = 219102, upload-time = "2026-09-04T18:59:15.541Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/62/e22db0afb98b481878f22c0cec125d29b33948863b4e3f4a083e610c40c7/flask_caching-2.5.1-py3-none-any.whl", hash = "sha256:a8591b0315f033d1f10ba67e318b82b3179e548306195ec08e8f0c5f8ef287bf", size = 35082, upload-time = "2026-09-04T18:59:13.862Z" },
+]
+
+[[package]]
 name = "flask-leeuwenhoek"
 version = "0.1.0"
 source = { editable = "." }
@@ -590,6 +648,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+cache = [
+    { name = "flask-caching", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "flask-caching", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
 http = [
     { name = "httpx" },
     { name = "requests" },
@@ -603,6 +665,8 @@ mail = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "flask-caching", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "flask-caching", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "flask-mail" },
     { name = "httpx" },
     { name = "mypy" },
@@ -617,16 +681,18 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "flask", specifier = ">=2.3" },
+    { name = "flask-caching", marker = "extra == 'cache'", specifier = ">=2.0" },
     { name = "flask-login", marker = "extra == 'login'", specifier = ">=0.6" },
     { name = "flask-mail", marker = "extra == 'mail'", specifier = ">=0.9" },
     { name = "httpx", marker = "extra == 'http'", specifier = ">=0.27" },
     { name = "requests", marker = "extra == 'http'", specifier = ">=2.31" },
     { name = "sqlalchemy", specifier = ">=2.0" },
 ]
-provides-extras = ["login", "mail", "http"]
+provides-extras = ["login", "mail", "http", "cache"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "flask-caching", specifier = ">=2.4.1" },
     { name = "flask-mail", specifier = ">=0.10.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mypy" },

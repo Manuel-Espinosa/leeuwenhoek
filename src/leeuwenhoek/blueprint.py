@@ -46,6 +46,7 @@ SLUGS = {
     "template": "templates",
     "command": "commands",
     "http": "http",
+    "cache": "cache",
 }
 #: entry types that start a batch, shown on top of the batch page
 MAIN_TYPES = ("request", "command")
@@ -341,7 +342,7 @@ def reopen_family(hash: str) -> BaseResponse:
 
 
 def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, Any]]:
-    """Group by type and compute each group's count, total time and slow entries.
+    """Group by type and compute each group's count, total time, slow entries and cache hits.
 
     The query group also gets ``n_plus_one``: the repeated statements of the whole batch (the
     skipped entry included) with their counts.
@@ -361,6 +362,8 @@ def _group(entries: list[Entry], skip: Entry | None = None) -> list[dict[str, An
             "count": len(items),
             "total_ms": sum(i.content.get("duration_ms") or 0 for i in items) or None,
             "slow": sum(1 for i in items if i.content.get("slow")),
+            "hits": sum(i.content.get("hits") or 0 for i in items),
+            "misses": sum(i.content.get("misses") or 0 for i in items),
             "n_plus_one": n_plus_one_summary(entries) if type_ == "query" else [],
         }
         for type_, items in sorted(groups.items(), key=lambda kv: order.index(kv[0]))
