@@ -265,6 +265,7 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 | `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request, command or scheduled job run, RQ job or Celery task on top |
 | `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception, with a Resolve / Reopen button |
 | `POST /leeuwenhoek/exceptions/family/<hash>/resolve` (`/reopen`) | Marks the family as resolved (or open again); needs the CSRF token |
+| `POST /leeuwenhoek/jobs/<uuid>/retry` (`/rq/<uuid>/retry`) | Dispatches a failed Celery task (or RQ job) again with its original arguments; needs the CSRF token, see [Retrying failed jobs](#retrying-failed-jobs) |
 | `/leeuwenhoek/<type>/rows?after=<id>` | HTML `<tr>` rows of the entries newer than `<id>`, with the same filters as the listing (used by live polling) |
 | `/leeuwenhoek/api/status` | JSON: recording state and counts per type |
 
@@ -277,6 +278,25 @@ The navbar has buttons to pause or resume recording and to clear all entries. Th
 Once a bug is fixed, mark its exception family as resolved with the **Resolve** button on the Exceptions listing, an exception's detail page or its family page. Resolved families are hidden from the Exceptions listing (and from its live polling); **Show resolved** (`/leeuwenhoek/exceptions?resolved=1`) lists them again, marked as resolved and with a **Reopen** button.
 
 A new occurrence after the resolve time reopens the family by itself: it shows up in the listing again with all its occurrences. The state lives in the settings table (`resolved:<family_hash>` with the resolve time), so every instance sharing the database sees it.
+
+### Retrying failed jobs
+
+The detail page of a failed run, a Celery task with the state `FAILURE` or an RQ execution with the status `failed`, has a **Retry** button that dispatches the job again with the arguments it received. Dispatch entries and successful runs don't get one. Like the other panel buttons, it uses POST with the panel's CSRF token and follows the panel's [access control](#access-control).
+
+The button is disabled, with the reason next to it, when the run can't be dispatched again:
+
+- **The arguments were not kept exactly** (`args_redacted` is `true`): something was masked with `LEEUWENHOEK_HIDDEN_PARAMS`, cut at `LEEUWENHOEK_MAX_BODY_KB` or was not plain JSON. Leeuwenhoek never dispatches a job with the arguments it only shows.
+- **Retrying is turned off**: `LEEUWENHOEK_ALLOW_RETRY` defaults to `app.debug`. Re-running a job is a side effect (a second email, a second charge), so outside debug mode it stays off until you set `LEEUWENHOEK_ALLOW_RETRY=true`.
+- **RQ only: there is no Redis connection to enqueue on.** Leeuwenhoek doesn't store the original job's connection, so give it one: `lw.init_app(app, rq_connection=redis)` or `LEEUWENHOEK_RQ_REDIS_URL=redis://localhost:6379/0`.
+
+A POST that is refused gets the detail page back with the reason: `409` when the run can't be retried, `403` when retrying is turned off, `502` when the broker or Redis rejects the dispatch. On success the panel goes back to the failed run with a notice, the id of the new task or job and a link to its run.
+
+How the job is dispatched again:
+
+- **Celery**: on the app passed as `celery=` (or `celery.current_app`), to the queue the run was recorded on, with a `leeuwenhoek_retry_of` message header. When the task is registered in the panel's process it goes through `task.apply_async()`, so `task_always_eager` and the task's options apply; otherwise it is published by name with `send_task()`, for tasks defined only on the workers.
+- **RQ**: `function` is enqueued by its dotted path on `Queue(<queue>, connection=...)`, as a new job with its own id, and `job.meta["leeuwenhoek_retry_of"]` set.
+
+Either way, the new run stores the uuid of the failed entry as `content["retry_of"]` and gets the tag `retry_of:<uuid>`: its detail page links back with **Retry of**, and the failed run's **Retries of this run** link lists every retry. The panel's own requests are not recorded, so there is no dispatch entry and the new run has no parent batch.
 
 ## Configuration
 
@@ -313,6 +333,8 @@ Each setting is read from `app.config["LEEUWENHOEK_<KEY>"]` first, then from an 
 | `LEEUWENHOEK_PRUNE_HOURS` | `24` | Retention period |
 | `LEEUWENHOEK_AUTO_PRUNE` | `True` | Prune old entries from the background writer |
 | `LEEUWENHOEK_PRUNE_INTERVAL_MINUTES` | `30` | How often to prune |
+| `LEEUWENHOEK_ALLOW_RETRY` | `app.debug` | Enable the Retry button on failed Celery and RQ runs, see [Retrying failed jobs](#retrying-failed-jobs) |
+| `LEEUWENHOEK_RQ_REDIS_URL` | `None` | Redis that RQ retries are enqueued on, when `init_app` got no `rq_connection=` |
 | `LEEUWENHOEK_BASIC_AUTH` | `None` | `("user", "password")` to protect the panel |
 | `LEEUWENHOEK_PAGE_SIZE` | `50` | Rows per page in the panel |
 | `LEEUWENHOEK_POLL_SECONDS` | `4` | How often the panel polls for new rows and menu counts. `0` disables live polling. |
@@ -398,6 +420,7 @@ For Postgres, install a driver too, for example `psycopg[binary]`.
 
 Things to know:
 - Writes never block a request. If the database is slow or down, batches are dropped and a warning is logged.
+- The Retry button on failed jobs is off outside debug mode; turn it on with `LEEUWENHOEK_ALLOW_RETRY=true` only if the people with panel access may re-run jobs.
 - Every instance prunes old entries on its own schedule, with jitter so they don't all prune at once.
 - Designed for gunicorn (including `--preload`, since the writer thread is restarted after a fork), uWSGI, the Werkzeug dev server and async views.
 

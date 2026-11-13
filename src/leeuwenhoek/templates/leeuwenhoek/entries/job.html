@@ -1,4 +1,4 @@
-{% from "leeuwenhoek/_macros.html" import duration, time_ago, json_tree %}
+{% from "leeuwenhoek/_macros.html" import duration, time_ago, json_tree, retry_button, retry_of_link with context %}
 {#- A job entry is either a run (root of its own batch) or, with `dispatched`, the dispatch of a
     task recorded in the batch that dispatched it, linking to the run's batch. -#}
 {% macro state_tag(c) -%}
@@ -35,10 +35,12 @@
     {%- if c.worker %} · worker <code>{{ c.worker }}</code>{% endif %}
     {%- if c.eta %} · ETA {{ c.eta }}{% endif %}
     {%- if c.dispatched and c.job_batch_id %} · <a href="{{ url_for('leeuwenhoek.batch', batch_id=c.job_batch_id) }}">View job</a>{% endif %}
-    {%- if e.parent_batch_id and not c.dispatched %} · <a href="{{ url_for('leeuwenhoek.batch', batch_id=e.parent_batch_id) }}">Dispatched by</a>{% endif %}</p>
+    {%- if e.parent_batch_id and not c.dispatched %} · <a href="{{ url_for('leeuwenhoek.batch', batch_id=e.parent_batch_id) }}">Dispatched by</a>{% endif %}
+    {{- retry_of_link(e) }}</p>
   {% if c.exception %}
   <div class="notification is-danger is-light"><strong>{{ c.exception['class'] }}</strong>: {{ c.exception.message }}</div>
   {% endif %}
+  {{ retry_button(e) }}
   {% if c.retry_reason %}
   <div class="notification is-warning is-light">Retried: {{ c.retry_reason }}</div>
   {% endif %}
