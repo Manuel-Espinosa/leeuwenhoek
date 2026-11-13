@@ -39,6 +39,7 @@ Or with the application factory pattern:
 ```python
 lw = Leeuwenhoek()
 
+
 def create_app():
     app = Flask(__name__)
     lw.init_app(app, engine=db.engine)  # engine: only record queries from this engine
@@ -79,9 +80,10 @@ Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user
 ```python
 from leeuwenhoek import dump
 
+
 @app.get("/checkout")
 def checkout():
-    dump(cart)        # shows up in the Dumps section and in this request's batch
+    dump(cart)  # shows up in the Dumps section and in this request's batch
     return "ok"
 ```
 
@@ -158,16 +160,18 @@ Tags make entries searchable from the panel with `?tag=`. There are three ways t
 ```python
 # 1. From request data, with dotted paths (lists are traversed, and JSON or base64 JSON strings are parsed)
 app.config["LEEUWENHOEK_REQUEST_TAGS"] = {
-    "order": "body.order_id",                        # -> order:1234
-    "sku": "body.items.sku",                         # -> one tag per item
+    "order": "body.order_id",  # -> order:1234
+    "sku": "body.items.sku",  # -> one tag per item
     "tenant": ["headers.X-Tenant-Id", "query.tenant"],
-    "event": "body.message.data.event_type",         # a Pub/Sub push message
+    "event": "body.message.data.event_type",  # a Pub/Sub push message
 }
+
 
 # 2. A tagger callback, run for every entry before it is saved
 @lw.tag
 def tenant_tag(entry):
     return [f"tenant:{g.tenant_id}"] if hasattr(g, "tenant_id") else []
+
 
 # 3. From anywhere while a request is being handled; the tags reach every entry in its batch
 from leeuwenhoek import add_tags

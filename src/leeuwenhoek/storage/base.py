@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -34,18 +35,18 @@ class StorageDriver(ABC):
         before: int | None = None,
         after: int | None = None,
         limit: int = 50,
-    ) -> list[Entry]:
+    ) -> builtins.list[Entry]:
         """Most recent first. ``after`` returns the next ``limit`` entries after that id."""
 
     @abstractmethod
     def get(self, uuid: str) -> Entry | None: ...
 
     @abstractmethod
-    def batch(self, batch_id: str) -> list[Entry]:
+    def batch(self, batch_id: str) -> builtins.list[Entry]:
         """Entries of a batch in chronological order."""
 
     @abstractmethod
-    def family(self, family_hash: str, limit: int = 100) -> list[Entry]: ...
+    def family(self, family_hash: str, limit: int = 100) -> builtins.list[Entry]: ...
 
     @abstractmethod
     def counts(self) -> dict[str, int]:
@@ -78,8 +79,9 @@ class StorageDriver(ABC):
         limit: int = 50,
     ) -> Page:
         """A page with cursors for the "Older" / "Newer" buttons."""
-        filters = {"root_only": root_only, "tag": tag, "q": q}
-        rows = self.list(type, before=before, after=after, limit=limit + 1, **filters)
+        rows = self.list(
+            type, root_only=root_only, tag=tag, q=q, before=before, after=after, limit=limit + 1
+        )
         if after is not None:
             has_newer = len(rows) > limit
             if has_newer:
@@ -94,6 +96,8 @@ class StorageDriver(ABC):
         if not rows:
             return Page()
         newer = None
-        if before is not None and self.list(type, after=rows[0].id, limit=1, **filters):
+        if before is not None and self.list(
+            type, root_only=root_only, tag=tag, q=q, after=rows[0].id, limit=1
+        ):
             newer = rows[0].id
         return Page(rows, older=rows[-1].id if has_older else None, newer=newer)

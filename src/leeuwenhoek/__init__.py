@@ -20,6 +20,7 @@ from .storage import MemoryStorage, SQLAlchemyStorage, StorageDriver
 from .tags import Tagger, normalize
 from .watchers import AVAILABLE, Watcher, default_watchers
 from .watchers.dump import dump
+from .watchers.query import QueryWatcher
 from .writer import Writer
 
 __all__ = ["Leeuwenhoek", "add_tags", "dump"]
@@ -76,7 +77,7 @@ class Leeuwenhoek:
             if missing := cls.missing():
                 log.warning("Skipping watcher %s: %s not installed", name, ", ".join(missing))
                 continue
-            watcher = cls(self, engine) if name == "query" else cls(self)
+            watcher = cls(self, engine) if issubclass(cls, QueryWatcher) else cls(self)
             watcher.register(app)
             self.watchers[name] = watcher
 
@@ -121,7 +122,9 @@ class Leeuwenhoek:
 
     def enabled(self) -> bool:
         flag = self.config.enabled
-        return bool(self.app.debug) if flag is None else bool(flag)
+        if flag is None:
+            return self.app is not None and bool(self.app.debug)
+        return bool(flag)
 
     def is_recording(self) -> bool:
         """Cached pause flag. Never raises: if the storage is down it keeps the last value."""
@@ -200,7 +203,7 @@ class Leeuwenhoek:
             return None
         batch = current_batch()
         standalone = batch is None
-        if standalone:
+        if batch is None:
             if not self.is_recording() or (self.config.only_errors and type != "exception"):
                 return None
             batch = Batch(kind="standalone", max_entries=1)

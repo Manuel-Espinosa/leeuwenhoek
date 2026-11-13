@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import threading
 from collections import Counter
 from datetime import timedelta
@@ -37,7 +38,7 @@ class MemoryStorage(StorageDriver):
         before=None,
         after=None,
         limit=50,
-    ) -> list[Entry]:
+    ) -> builtins.list[Entry]:
         with self._lock:
             rows = list(self._entries)
         if type:
@@ -60,11 +61,11 @@ class MemoryStorage(StorageDriver):
         with self._lock:
             return next((e for e in self._entries if e.uuid == uuid), None)
 
-    def batch(self, batch_id: str) -> list[Entry]:
+    def batch(self, batch_id: str) -> builtins.list[Entry]:
         with self._lock:
             return [e for e in self._entries if e.batch_id == batch_id]
 
-    def family(self, family_hash: str, limit: int = 100) -> list[Entry]:
+    def family(self, family_hash: str, limit: int = 100) -> builtins.list[Entry]:
         with self._lock:
             rows = [e for e in self._entries if e.family_hash == family_hash]
         return list(reversed(rows))[:limit]

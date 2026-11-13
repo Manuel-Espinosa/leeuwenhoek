@@ -8,6 +8,8 @@ import traceback
 from typing import Any
 
 from flask import Flask, got_request_exception
+from flask.typing import ResponseReturnValue
+from werkzeug.exceptions import HTTPException
 
 from .base import Watcher
 
@@ -31,10 +33,11 @@ class ExceptionWatcher(Watcher):
         got_request_exception.disconnect(self._on_exception, self._app)
         self._app.handle_user_exception = self._original  # type: ignore[method-assign]
 
-    def _handle_user_exception(self, exc: Exception) -> Any:
-        result = self._original(exc)  # re-raises when unhandled: the signal covers that case
+    def _handle_user_exception(self, e: Exception) -> HTTPException | ResponseReturnValue:
+        # Same signature as ``Flask.handle_user_exception``, which it replaces.
+        result = self._original(e)  # re-raises when unhandled: the signal covers that case
         if status_of(result) >= self.lw.config.handled_exception_min_status:
-            self.capture(exc, handled=True)
+            self.capture(e, handled=True)
         return result
 
     def _on_exception(self, sender: Flask, exception: BaseException, **_: Any) -> None:

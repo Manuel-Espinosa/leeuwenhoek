@@ -77,7 +77,7 @@ def normalize(tags: Iterable[Any] | None) -> list[str]:
 
 def from_paths(content: Mapping[str, Any], spec: Mapping[str, str | Iterable[str]]) -> list[str]:
     """Build ``name:value`` tags from ``{"name": "dotted.path" | ["path", ...]}``."""
-    tags = []
+    tags: list[str] = []
     for name, paths in spec.items():
         for path in [paths] if isinstance(paths, str) else paths:
             tags.extend(f"{name}:{value}" for value in resolve(content, path))

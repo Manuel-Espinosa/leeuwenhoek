@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+from types import FrameType
 from typing import Any
 
 from sqlalchemy import Engine, event
@@ -84,7 +85,7 @@ def _plain(parameters: Any) -> Any:
 
 def origin() -> tuple[str | None, int | None]:
     """First frame that belongs to neither SQLAlchemy, Flask nor this library."""
-    frame = sys._getframe(1)
+    frame: FrameType | None = sys._getframe(1)
     for _ in range(MAX_FRAMES):
         if frame is None:
             break
