@@ -765,99 +765,6 @@ wheels = [
 ]
 
 [[package]]
-name = "flask-leeuwenhoek"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "flask" },
-    { name = "sqlalchemy", version = "2.0.55", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "sqlalchemy", version = "2.1.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-]
-
-[package.optional-dependencies]
-cache = [
-    { name = "flask-caching", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "flask-caching", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-]
-celery = [
-    { name = "celery" },
-]
-http = [
-    { name = "httpx" },
-    { name = "requests" },
-]
-login = [
-    { name = "flask-login" },
-]
-mail = [
-    { name = "flask-mail" },
-]
-redis = [
-    { name = "redis" },
-]
-rq = [
-    { name = "rq" },
-]
-sched = [
-    { name = "apscheduler" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "apscheduler" },
-    { name = "celery" },
-    { name = "fakeredis" },
-    { name = "flask-caching", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "flask-caching", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "flask-mail" },
-    { name = "httpx" },
-    { name = "mypy" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "redis" },
-    { name = "requests" },
-    { name = "rq" },
-    { name = "ruff" },
-    { name = "types-requests" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "apscheduler", marker = "extra == 'sched'", specifier = ">=3.10,<4" },
-    { name = "celery", marker = "extra == 'celery'", specifier = ">=5.3" },
-    { name = "flask", specifier = ">=2.3" },
-    { name = "flask-caching", marker = "extra == 'cache'", specifier = ">=2.0" },
-    { name = "flask-login", marker = "extra == 'login'", specifier = ">=0.6" },
-    { name = "flask-mail", marker = "extra == 'mail'", specifier = ">=0.9" },
-    { name = "httpx", marker = "extra == 'http'", specifier = ">=0.27" },
-    { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0" },
-    { name = "requests", marker = "extra == 'http'", specifier = ">=2.31" },
-    { name = "rq", marker = "extra == 'rq'", specifier = ">=1.15" },
-    { name = "sqlalchemy", specifier = ">=2.0" },
-]
-provides-extras = ["login", "mail", "http", "cache", "redis", "sched", "rq", "celery"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "apscheduler", specifier = ">=3.10,<4" },
-    { name = "celery", specifier = ">=5.7.0" },
-    { name = "fakeredis", specifier = ">=2.40.0" },
-    { name = "flask-caching", specifier = ">=2.4.1" },
-    { name = "flask-mail", specifier = ">=0.10.0" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "mypy" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "redis", specifier = ">=8.1.0" },
-    { name = "requests", specifier = ">=2.34.2" },
-    { name = "rq", specifier = ">=3.0.0" },
-    { name = "ruff" },
-    { name = "types-requests", specifier = ">=2.33.0.20261030" },
-]
-
-[[package]]
 name = "flask-login"
 version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1041,6 +948,99 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/57/31/3e632ebce43c684dcc6eead4660b33307e6153be87e33c14e1ed9875deff/kombu-5.7.0.tar.gz", hash = "sha256:31e62fdfd2381caa3422f8e02b84a491d9a2180ddda74507b57f4cb1e1c2c2c9", size = 627051, upload-time = "2026-11-03T05:58:33.446Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/84/20/f73d8e0bff9708b0f2337220be1b5d7ebd738bc3a89b63cf44d257157014/kombu-5.7.0-py3-none-any.whl", hash = "sha256:dede73bff4c89175be382c4203d2f167cf7017c384396ec75c36a1b5678f1587", size = 266635, upload-time = "2026-11-03T05:58:31.475Z" },
+]
+
+[[package]]
+name = "leeuwenhoek"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "flask" },
+    { name = "sqlalchemy", version = "2.0.55", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "sqlalchemy", version = "2.1.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+
+[package.optional-dependencies]
+cache = [
+    { name = "flask-caching", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "flask-caching", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+celery = [
+    { name = "celery" },
+]
+http = [
+    { name = "httpx" },
+    { name = "requests" },
+]
+login = [
+    { name = "flask-login" },
+]
+mail = [
+    { name = "flask-mail" },
+]
+redis = [
+    { name = "redis" },
+]
+rq = [
+    { name = "rq" },
+]
+sched = [
+    { name = "apscheduler" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "apscheduler" },
+    { name = "celery" },
+    { name = "fakeredis" },
+    { name = "flask-caching", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "flask-caching", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "flask-mail" },
+    { name = "httpx" },
+    { name = "mypy" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "redis" },
+    { name = "requests" },
+    { name = "rq" },
+    { name = "ruff" },
+    { name = "types-requests" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "apscheduler", marker = "extra == 'sched'", specifier = ">=3.10,<4" },
+    { name = "celery", marker = "extra == 'celery'", specifier = ">=5.3" },
+    { name = "flask", specifier = ">=2.3" },
+    { name = "flask-caching", marker = "extra == 'cache'", specifier = ">=2.0" },
+    { name = "flask-login", marker = "extra == 'login'", specifier = ">=0.6" },
+    { name = "flask-mail", marker = "extra == 'mail'", specifier = ">=0.9" },
+    { name = "httpx", marker = "extra == 'http'", specifier = ">=0.27" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0" },
+    { name = "requests", marker = "extra == 'http'", specifier = ">=2.31" },
+    { name = "rq", marker = "extra == 'rq'", specifier = ">=1.15" },
+    { name = "sqlalchemy", specifier = ">=2.0" },
+]
+provides-extras = ["login", "mail", "http", "cache", "redis", "sched", "rq", "celery"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "apscheduler", specifier = ">=3.10,<4" },
+    { name = "celery", specifier = ">=5.7.0" },
+    { name = "fakeredis", specifier = ">=2.40.0" },
+    { name = "flask-caching", specifier = ">=2.4.1" },
+    { name = "flask-mail", specifier = ">=0.10.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "mypy" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "redis", specifier = ">=8.1.0" },
+    { name = "requests", specifier = ">=2.34.2" },
+    { name = "rq", specifier = ">=3.0.0" },
+    { name = "ruff" },
+    { name = "types-requests", specifier = ">=2.33.0.20261030" },
 ]
 
 [[package]]

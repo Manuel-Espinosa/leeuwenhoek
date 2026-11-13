@@ -1,5 +1,5 @@
 [project]
-name = "flask-leeuwenhoek"
+name = "leeuwenhoek"
 version = "0.1.0"
 description = "Embedded debugging panel for Flask"
 readme = "README.md"
@@ -8,10 +8,30 @@ authors = [
 ]
 requires-python = ">=3.10"
 license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["flask", "debugging", "debugger", "profiler", "observability", "telescope"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Flask",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Debuggers",
+    "Typing :: Typed",
+]
 dependencies = [
     "flask>=2.3",
     "sqlalchemy>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Manuel-Espinosa/leeuwenhoek"
+Source = "https://github.com/Manuel-Espinosa/leeuwenhoek"
+Issues = "https://github.com/Manuel-Espinosa/leeuwenhoek/issues"
 
 [project.optional-dependencies]
 login = ["flask-login>=0.6"]

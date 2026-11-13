@@ -1,4 +1,4 @@
-# flask-leeuwenhoek
+# leeuwenhoek
 
 A debugging microscope that lives inside your Flask app. Leeuwenhoek records what happens during each request, CLI command and background job (the request itself, SQL queries, exceptions, log lines, ad-hoc dumps, outgoing HTTP calls, cache and Redis operations, mail, ORM changes and more), groups it all by batch, and shows it in a panel at `/leeuwenhoek`.
 
@@ -14,29 +14,27 @@ A debugging microscope that lives inside your Flask app. Leeuwenhoek records wha
 
 Requires Python 3.10+, Flask 2.3+ and SQLAlchemy 2.x.
 
-Leeuwenhoek isn't on PyPI yet ([#23](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues/23)). For now, install it from GitHub:
-
 ```bash
-uv add git+https://github.com/Manuel-Espinosa/flask-leeuwenhoek
+uv add leeuwenhoek
 # or
-pip install git+https://github.com/Manuel-Espinosa/flask-leeuwenhoek
+pip install leeuwenhoek
 ```
 
-Add the `login` extra (`flask-leeuwenhoek[login] @ git+...`) to record the current [Flask-Login](https://flask-login.readthedocs.io/) user on each request. If Flask-Login is already installed, this happens automatically.
+Add the `login` extra (`leeuwenhoek[login]`) to record the current [Flask-Login](https://flask-login.readthedocs.io/) user on each request. If Flask-Login is already installed, this happens automatically.
 
-Add the `cache` extra (`flask-leeuwenhoek[cache]`) to record [Flask-Caching](https://flask-caching.readthedocs.io/) operations. As with Flask-Login, the cache watcher turns on by itself when Flask-Caching is installed.
+Add the `cache` extra (`leeuwenhoek[cache]`) to record [Flask-Caching](https://flask-caching.readthedocs.io/) operations. As with Flask-Login, the cache watcher turns on by itself when Flask-Caching is installed.
 
-Add the `mail` extra (`flask-leeuwenhoek[mail] @ git+...`) to record emails sent with [Flask-Mail](https://flask-mail.readthedocs.io/). As with every integration watcher, it turns on by itself when Flask-Mail is installed.
+Add the `mail` extra (`leeuwenhoek[mail]`) to record emails sent with [Flask-Mail](https://flask-mail.readthedocs.io/). As with every integration watcher, it turns on by itself when Flask-Mail is installed.
 
-Add the `redis` extra (`flask-leeuwenhoek[redis]`) to record the commands sent with [redis-py](https://redis.readthedocs.io/). The Redis watcher turns on by itself when `redis` is installed.
+Add the `redis` extra (`leeuwenhoek[redis]`) to record the commands sent with [redis-py](https://redis.readthedocs.io/). The Redis watcher turns on by itself when `redis` is installed.
 
-Add the `celery` extra (`flask-leeuwenhoek[celery]`) to record [Celery](https://docs.celeryq.dev/) tasks, see [Celery jobs](#celery-jobs). The watcher turns on by itself when Celery is installed.
+Add the `celery` extra (`leeuwenhoek[celery]`) to record [Celery](https://docs.celeryq.dev/) tasks, see [Celery jobs](#celery-jobs). The watcher turns on by itself when Celery is installed.
 
 Add the `http` extra to install [requests](https://requests.readthedocs.io/) and [HTTPX](https://www.python-httpx.org/) for the outgoing HTTP watcher. Either one is enough, and the watcher turns on by itself if your app already uses one of them.
 
-Add the `sched` extra (`flask-leeuwenhoek[sched]`) to record [APScheduler](https://apscheduler.readthedocs.io/en/3.x/) job runs. Only APScheduler 3.x is supported (`apscheduler>=3.10,<4`); version 4 has a different API. The watcher turns on by itself when APScheduler is installed.
+Add the `sched` extra (`leeuwenhoek[sched]`) to record [APScheduler](https://apscheduler.readthedocs.io/en/3.x/) job runs. Only APScheduler 3.x is supported (`apscheduler>=3.10,<4`); version 4 has a different API. The watcher turns on by itself when APScheduler is installed.
 
-Add the `rq` extra (`flask-leeuwenhoek[rq]`) to record [RQ](https://python-rq.org/) jobs (RQ 1.15 or newer). The watcher turns on by itself when RQ is installed.
+Add the `rq` extra (`leeuwenhoek[rq]`) to record [RQ](https://python-rq.org/) jobs (RQ 1.15 or newer). The watcher turns on by itself when RQ is installed.
 
 ## Quickstart
 
@@ -67,8 +65,8 @@ By default Leeuwenhoek is enabled only when `app.debug` is `True`, and the panel
 ### Try the demo
 
 ```bash
-git clone https://github.com/Manuel-Espinosa/flask-leeuwenhoek
-cd flask-leeuwenhoek
+git clone https://github.com/Manuel-Espinosa/leeuwenhoek
+cd leeuwenhoek
 uv sync
 uv run flask --app examples/demo run --debug
 ```
@@ -452,17 +450,17 @@ lw.close()  # remove global handlers and listeners
 
 ## Roadmap
 
-Work is tracked in [GitHub issues](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues) and grouped into milestones.
+Work is tracked in [GitHub issues](https://github.com/Manuel-Espinosa/leeuwenhoek/issues) and grouped into milestones.
 
 Shipped (on `main`, not yet released to PyPI):
 
-- **[v0.2](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/milestone/1)** (complete): watchers for outgoing HTTP, templates, CLI commands, mail, cache and Celery jobs; slow-query and N+1 detection; `lw.filter()`; capture of exceptions outside requests (`sys.excepthook`); live polling; dark mode; auto-detection of available watchers; a test that the wheel ships templates and static files; a request overhead benchmark; mypy and ruff format in CI.
-- **[v0.3](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/milestone/2)** (in progress): watchers for RQ jobs, ORM models, Redis, scheduled tasks and blinker events; peak memory per request; resolving exception families.
+- **[v0.2](https://github.com/Manuel-Espinosa/leeuwenhoek/milestone/1)** (complete): watchers for outgoing HTTP, templates, CLI commands, mail, cache and Celery jobs; slow-query and N+1 detection; `lw.filter()`; capture of exceptions outside requests (`sys.excepthook`); live polling; dark mode; auto-detection of available watchers; a test that the wheel ships templates and static files; a request overhead benchmark; mypy and ruff format in CI.
+- **[v0.3](https://github.com/Manuel-Espinosa/leeuwenhoek/milestone/2)** (in progress): watchers for RQ jobs, ORM models, Redis, scheduled tasks and blinker events; peak memory per request; resolving exception families.
 
 Upcoming in v0.3:
 
-- Retrying failed jobs from the panel ([#21](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues/21)).
-- Publishing to PyPI ([#23](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues/23)).
+- Retrying failed jobs from the panel ([#21](https://github.com/Manuel-Espinosa/leeuwenhoek/issues/21)).
+- Publishing to PyPI ([#23](https://github.com/Manuel-Espinosa/leeuwenhoek/issues/23)).
 
 Out of scope: distributed tracing or APM (use OpenTelemetry), aggregated metrics, and alerting.
 
