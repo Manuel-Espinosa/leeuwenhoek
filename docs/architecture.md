@@ -61,7 +61,9 @@ src/leeuwenhoek/
 
 Indexes: `batch_id`, `family_hash`, `type`, `created_at`, `(type, created_at)`.
 
-`leeuwenhoek_tags` (`entry_uuid`, `tag`) holds tags, indexed by `tag`. `leeuwenhoek_settings` (`key`, `value`) holds state shared by all instances, such as the recording flag.
+`leeuwenhoek_tags` (`entry_uuid`, `tag`) holds tags, indexed by `tag`. `leeuwenhoek_settings` (`key`, `value`) holds state shared by all instances, such as the recording flag and resolved exception families. Drivers expose it through `get_setting`, `set_setting`, `delete_setting` and `settings(prefix)`.
+
+A resolved family is the setting `resolved:<family_hash>`, whose value is the resolve time (ISO, UTC). It reopens lazily: a family counts as resolved only while its newest occurrence is not newer than that time, so nothing is written when an exception is recorded and the writer thread never races with the panel. The Exceptions listing (and its live-polling rows) reads every `resolved:` setting, checks them with one grouped `MAX(created_at)` query (`last_seen`), and leaves the still-resolved families out with a `family_hash NOT IN (...)` filter. An occurrence recorded before the resolve time but written later (async writer) does not reopen the family, because `created_at` is taken when the exception happens. Resolve times come from the panel's clock and `created_at` from the recording instance's, so keep instance clocks in sync.
 
 Pagination is by cursor (`before=<id>` / `after=<id>`), never by offset.
 

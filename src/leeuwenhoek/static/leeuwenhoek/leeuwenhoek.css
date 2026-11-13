@@ -26,6 +26,7 @@
 }
 
 .lw-row { cursor: pointer; }
+.lw-inline-form { display: inline-block; }
 .lw-tree { margin-left: .25rem; }
 .lw-tree ul { margin-left: 1.25rem; border-left: 1px solid var(--bulma-border, #dbdbdb); padding-left: .75rem; list-style: none; }
 .lw-tree summary { cursor: pointer; color: var(--bulma-text-weak, #7a7a7a); }
