@@ -66,19 +66,19 @@ def test_dump(app, lw, client):
 
     @app.get("/d")
     def d():
-        dump({"hola": "mundo"})
+        dump({"hello": "world"})
         return "ok"
 
     client.get("/d")
     dumped = entries(lw, "dump")[0]
-    assert "'hola': 'mundo'" in dumped.content["repr"]
+    assert "'hello': 'world'" in dumped.content["repr"]
     assert dumped.batch_id == entries(lw, "request")[0].batch_id
 
 
 def test_standalone_log(app, lw):
-    app.logger.error("fuera de request")
+    app.logger.error("outside a request")
     log = entries(lw, "log")[0]
-    assert log.is_root and log.content["message"] == "fuera de request"
+    assert log.is_root and log.content["message"] == "outside a request"
 
 
 def test_pause_recording(client, lw):

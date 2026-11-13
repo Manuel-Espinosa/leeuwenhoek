@@ -1,7 +1,7 @@
 [project]
 name = "flask-leeuwenhoek"
 version = "0.1.0"
-description = "Panel de depuración embebido para Flask"
+description = "Embedded debugging panel for Flask"
 readme = "README.md"
 authors = [
     { name = "Manuel-Espinosa", email = "manuespinosadev@gmail.com" }
@@ -14,15 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-login   = ["flask-login>=0.6"]
-celery  = ["celery>=5.3"]
-rq      = ["rq>=1.15"]
-cache   = ["flask-caching>=2.0"]
-mail    = ["flask-mail>=0.9"]
-redis   = ["redis>=5.0"]
-http    = ["requests>=2.31", "httpx>=0.27"]
-sched   = ["apscheduler>=3.10"]
-all     = ["flask-leeuwenhoek[login,celery,rq,cache,mail,redis,http,sched]"]
+login = ["flask-login>=0.6"]
 
 [project.entry-points."flask.commands"]
 leeuwenhoek = "leeuwenhoek.cli:cli"
