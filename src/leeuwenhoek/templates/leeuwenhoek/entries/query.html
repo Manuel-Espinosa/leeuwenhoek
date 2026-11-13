@@ -1,16 +1,16 @@
 {% from "leeuwenhoek/_macros.html" import duration, time_ago, sql_block, json_tree %}
-{% macro slow_tag(c) %}{% if c.slow %} <span class="tag is-warning">slow</span>{% endif %}{% endmacro %}
+{% macro badges(c) %}{% if c.slow %} <span class="tag is-warning">slow</span>{% endif %}{% if c.n_plus_one %} <span class="tag is-danger">n+1</span>{% endif %}{% endmacro %}
 {% macro head() %}<th>SQL</th><th>Duration</th><th>Origin</th><th>When</th>{% endmacro %}
 {% macro row(e) %}
   <td><code>{{ e.content.sql | lw_truncate(90) }}</code></td>
-  <td>{{ duration(e.content.duration_ms) }}{{ slow_tag(e.content) }}</td>
+  <td>{{ duration(e.content.duration_ms) }}{{ badges(e.content) }}</td>
   <td class="is-size-7">{% if e.content.file %}{{ e.content.file.split('/')[-1] }}:{{ e.content.line }}{% endif %}</td>
   <td>{{ time_ago(e.created_at) }}</td>
 {% endmacro %}
-{% macro summary(e) %}<code>{{ e.content.sql | lw_truncate(100) }}</code> {{ duration(e.content.duration_ms) }}{{ slow_tag(e.content) }}{% endmacro %}
+{% macro summary(e) %}<code>{{ e.content.sql | lw_truncate(100) }}</code> {{ duration(e.content.duration_ms) }}{{ badges(e.content) }}{% endmacro %}
 {% macro detail(e) %}
   {% set c = e.content %}
-  <p class="mb-2"><strong>{{ c.duration_ms | lw_duration }}</strong>{{ slow_tag(c) }} · <span class="has-text-grey">{{ c.engine }}</span></p>
+  <p class="mb-2"><strong>{{ c.duration_ms | lw_duration }}</strong>{{ badges(c) }} · <span class="has-text-grey">{{ c.engine }}</span></p>
   {{ sql_block(c.interpolated or c.sql) }}
   {% if c.interpolated %}<details class="mt-3"><summary>Original SQL and parameters</summary>{{ sql_block(c.sql) }}{{ json_tree(c.parameters, true) }}</details>{% endif %}
   {% if c.file %}<p class="mt-3 is-size-7">Origin: <code>{{ c.file }}:{{ c.line }}</code></p>{% endif %}

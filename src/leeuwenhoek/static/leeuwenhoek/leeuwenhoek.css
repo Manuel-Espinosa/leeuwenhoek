@@ -41,3 +41,5 @@ pre.lw-str { padding: .5rem .75rem; }
 .menu-list a .tag { margin-left: .5rem; }
 /* Keep the count badge readable on the highlighted (blue) menu item. */
 .menu-list a.is-active .tag { background: rgba(255, 255, 255, .25); color: #fff; }
+/* Mail HTML preview: always white, like a mail client, whatever the panel theme. */
+.lw-mail-preview { width: 100%; min-height: 24rem; border: 1px solid var(--bulma-border, #dbdbdb); background: #fff; }
