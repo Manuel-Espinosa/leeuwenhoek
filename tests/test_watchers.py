@@ -1,4 +1,5 @@
 from conftest import entries
+from sqlalchemy import text
 
 
 def test_request_batch_groups_everything(client, lw):
@@ -98,4 +99,59 @@ def test_max_entries_per_batch(app, engine):
     app.add_url_rule("/many", "many", lambda: [app.logger.warning("x") for _ in range(10)] and "ok")
     app.test_client().get("/many")
     assert len(entries(ext)) == 3  # 2 logs + the forced request entry
+    ext.close()
+
+
+class FakeClock:
+    """Stand-in for the ``time`` module whose ``perf_counter`` advances ``step`` seconds per call."""
+
+    def __init__(self, step: float) -> None:
+        self.now, self.step = 0.0, step
+
+    def perf_counter(self) -> float:
+        self.now += self.step
+        return self.now
+
+
+SLOW_TAG = '<span class="tag is-warning">slow</span>'
+
+
+def test_query_over_threshold_is_slow(monkeypatch, client, lw):
+    from leeuwenhoek.watchers import query
+
+    monkeypatch.setattr(query, "time", FakeClock(0.2))  # every query takes 200 ms
+    client.get("/hello")
+    q = entries(lw, "query")[0]
+    assert q.content["duration_ms"] == 200 and q.content["slow"] is True
+    assert "slow" in q.tags
+
+    assert SLOW_TAG in client.get("/leeuwenhoek/queries").text
+    assert SLOW_TAG in client.get(f"/leeuwenhoek/queries/{q.uuid}").text
+    req = entries(lw, "request")[0]
+    assert "1 slow</span>" in client.get(f"/leeuwenhoek/requests/{req.uuid}").text
+
+
+def test_query_under_threshold_is_not_slow(monkeypatch, app, engine):
+    from leeuwenhoek import Leeuwenhoek
+    from leeuwenhoek.watchers import query
+
+    app.config["LEEUWENHOEK_SLOW_QUERY_MS"] = 500
+    ext = Leeuwenhoek(app, engine=engine)
+    monkeypatch.setattr(query, "time", FakeClock(0.2))
+
+    @app.get("/q")
+    def q_view():
+        with engine.connect() as conn:
+            conn.execute(text("select 1"))
+        return "ok"
+
+    client = app.test_client()
+    client.get("/q")
+    q = entries(ext, "query")[0]
+    assert q.content["duration_ms"] == 200 and q.content["slow"] is False
+    assert "slow" not in q.tags
+
+    assert SLOW_TAG not in client.get("/leeuwenhoek/queries").text
+    req = entries(ext, "request")[0]
+    assert "slow</span>" not in client.get(f"/leeuwenhoek/requests/{req.uuid}").text
     ext.close()

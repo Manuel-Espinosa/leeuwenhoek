@@ -22,7 +22,7 @@ src/leeuwenhoek/
 ├── context.py       # Batch dataclass and the current batch (contextvars)
 ├── models.py        # Entry dataclass and SQLAlchemy tables
 ├── writer.py        # Background writer: bounded queue, lazy thread, periodic pruning
-├── filters.py       # Ignored paths, redaction, truncation
+├── filters.py       # Ignored paths, entry filter type, redaction, truncation
 ├── tags.py          # Dotted-path tag extraction, normalization, tagger callbacks
 ├── auth.py          # Panel access control and CSRF token
 ├── blueprint.py     # Panel views and Jinja filters
@@ -38,7 +38,7 @@ src/leeuwenhoek/
 1. **`before_request`**: `Leeuwenhoek._begin` decides whether this request is recorded. It isn't if Leeuwenhoek is disabled, the path is the panel or matches `IGNORE_PATHS`, the request is sampled out, or recording is paused. It then creates a `Batch` and stores it in a `ContextVar`. A batch that isn't recorded still exists, with `recording=False`, so watchers can check it cheaply.
 2. **During the request**: watchers call `lw.record(type, content)`, which appends an `Entry` to the current batch's in-memory buffer, up to `MAX_ENTRIES_PER_BATCH`. Nothing touches the database yet. An entry recorded outside any batch (a log line at import time, for example) gets its own `standalone` batch and is saved right away.
 3. **`after_request`**: the request watcher stores the status and response in `batch.meta`.
-4. **`teardown_request`**: `on_finish` callbacks run while the batch is still current, so anything they record joins it. This is where the request entry itself is built. If `ONLY_ERRORS` is on, batches without an error are dropped here. Otherwise tags are applied and the whole batch is handed to the writer.
+4. **`teardown_request`**: `on_finish` callbacks run while the batch is still current, so anything they record joins it. This is where the request entry itself is built. If `ONLY_ERRORS` is on, batches without an error are dropped here. Otherwise entry filters (`lw.filter`) run first: rejected entries are removed, and if the root entry is rejected the whole batch is dropped. Then tags are applied and the batch is handed to the writer.
 5. **Writer**: a daemon thread takes batches from a bounded `queue.Queue` and stores each one with a single insert. When the queue is full, the batch is dropped and a rate-limited warning is logged. A request is never blocked by the storage. The thread is started lazily and restarted if the PID changes (after a fork, for example `gunicorn --preload`). Pending batches are flushed at exit (`atexit`, with `FLUSH_TIMEOUT`). The same thread prunes old entries periodically, with jitter so several instances don't prune at the same time.
 
 `ContextVar` is used instead of `flask.g` because it also works outside an app context, and with threads, gevent and async views.

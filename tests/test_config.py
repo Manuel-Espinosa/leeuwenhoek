@@ -39,6 +39,11 @@ def test_app_config_beats_env_and_empty_env_is_unset(monkeypatch):
     assert c.page_size == 5 and c.sample_rate == 1.0 and c.enabled is None
 
 
+def test_slow_query_threshold_default_and_env(monkeypatch):
+    assert cfg(monkeypatch).slow_query_ms == 100
+    assert cfg(monkeypatch, {"LEEUWENHOEK_SLOW_QUERY_MS": "250"}).slow_query_ms == 250
+
+
 def test_database_url_from_parts(monkeypatch):
     c = cfg(
         monkeypatch,

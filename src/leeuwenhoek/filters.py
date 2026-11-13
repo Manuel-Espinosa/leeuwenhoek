@@ -1,12 +1,15 @@
-"""Ignored paths, redaction and truncation."""
+"""Ignored paths, entry filters, redaction and truncation."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from fnmatch import fnmatch
 from typing import Any
 
-from .models import dumps
+from .models import Entry, dumps
+
+#: An entry filter receives an entry and returns ``True`` to keep it.
+EntryFilter = Callable[[Entry], bool]
 
 MASK = "********"
 
