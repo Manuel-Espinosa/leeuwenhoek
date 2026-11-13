@@ -138,8 +138,10 @@ def test_sync_queue_inside_a_request(app, lw, sync_queue):
     assert executed.parent_batch_id == request.batch_id
     assert dispatched.batch_id == request.batch_id
     assert dispatched.content["status"] == "finished"
-    # Nothing of the job leaks into the request's batch.
-    assert sorted(e.type for e in lw.storage.batch(request.batch_id)) == ["request", "rq"]
+    # Nothing of the job leaks into the request's batch (the Redis commands RQ sent are the
+    # redis watcher's, so they are expected).
+    types = {e.type for e in lw.storage.batch(request.batch_id)} - {"redis"}
+    assert sorted(types) == ["request", "rq"]
 
 
 def test_args_are_kept_for_a_retry_only_when_nothing_was_redacted(app, lw, sync_queue):
