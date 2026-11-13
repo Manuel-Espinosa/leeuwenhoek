@@ -1,0 +1,45 @@
+{% from "leeuwenhoek/_macros.html" import duration, time_ago %}
+{% macro error_tag(err) %}{% if err %}<span class="tag is-danger" title="{{ err.message }}">{{ err['class'].split('.')[-1] }}</span>{% endif %}{% endmacro %}
+{% macro command_tag(c) %}<span class="tag">{{ c.command }}</span>{% if c.command == "PIPELINE" %} <span class="tag is-light">{{ c.count }} command{{ 's' if c.count != 1 }}</span>{% endif %}{% endmacro %}
+{% macro args_text(c) %}{% if c.command == "PIPELINE" %}{{ c.commands | map(attribute='command') | join(", ") }}{% else %}{{ c.args | join(" ") }}{% endif %}{% endmacro %}
+{% macro head() %}<th>Command</th><th>Arguments</th><th>Server</th><th>Duration</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td>{{ command_tag(e.content) }} {{ error_tag(e.content.error) }}</td>
+  <td><code>{{ args_text(e.content) | lw_truncate(90) }}</code></td>
+  <td class="has-text-grey">{{ e.content.host or '—' }}{% if e.content.db is not none %}/{{ e.content.db }}{% endif %}</td>
+  <td>{{ duration(e.content.duration_ms) }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}{{ command_tag(e.content) }} <code>{{ args_text(e.content) | lw_truncate(90) }}</code> {{ error_tag(e.content.error) }} {{ duration(e.content.duration_ms) }}{% endmacro %}
+{% macro arg_list(c) -%}
+  {%- for a in c.args %}<code>{{ a }}</code> {% endfor -%}
+  {%- if c.args_omitted %}<span class="has-text-grey">… {{ c.args_omitted }} more</span>{% endif -%}
+{%- endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <div class="level">
+    <div class="level-item has-text-centered"><div><p class="heading">Command</p><p class="title is-5">{{ c.command }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Duration</p><p class="title is-5">{{ c.duration_ms | lw_duration }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Server</p><p class="title is-5">{{ c.host or '—' }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Database</p><p class="title is-5">{{ c.db if c.db is not none else '—' }}</p></div></div>
+    <div class="level-item has-text-centered"><div><p class="heading">Client</p><p class="title is-5">{{ 'async' if c['async'] else 'sync' }}</p></div></div>
+  </div>
+  {% if c.error %}
+  <div class="notification is-danger is-light"><strong>{{ c.error['class'] }}</strong>: {{ c.error.message }}</div>
+  {% endif %}
+  {% if c.command == "PIPELINE" %}
+  <p class="mb-2">{{ c.count }} command{{ 's' if c.count != 1 }}{% if c.transaction %} in a transaction (<code>MULTI</code> / <code>EXEC</code>){% endif %}</p>
+  <table class="table is-narrow is-fullwidth">
+    <thead><tr><th>#</th><th>Command</th><th>Arguments</th></tr></thead>
+    <tbody>
+    {% for cmd in c.commands %}
+      <tr><td class="has-text-grey">{{ loop.index }}</td><td><span class="tag">{{ cmd.command }}</span> {{ error_tag(cmd.error) }}</td><td>{{ arg_list(cmd) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if c.commands_omitted %}<p class="has-text-grey">… {{ c.commands_omitted }} more commands not recorded</p>{% endif %}
+  {% else %}
+  <p><strong>Arguments</strong></p>
+  <p>{% if c.args %}{{ arg_list(c) }}{% else %}<span class="has-text-grey">none</span>{% endif %}</p>
+  {% endif %}
+{% endmacro %}

@@ -7,6 +7,7 @@ from .http_client import HttpClientWatcher
 from .log import LogWatcher
 from .mail import MailWatcher
 from .query import QueryWatcher
+from .redis_client import RedisWatcher
 from .request import RequestWatcher
 from .template import TemplateWatcher
 
@@ -24,6 +25,7 @@ AVAILABLE: dict[str, type[Watcher]] = {
         CommandWatcher,
         HttpClientWatcher,
         CacheWatcher,
+        RedisWatcher,
     )
 }
 

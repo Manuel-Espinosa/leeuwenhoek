@@ -28,6 +28,8 @@ Add the `cache` extra (`flask-leeuwenhoek[cache]`) to record [Flask-Caching](htt
 
 Add the `mail` extra (`flask-leeuwenhoek[mail] @ git+...`) to record emails sent with [Flask-Mail](https://flask-mail.readthedocs.io/). As with every integration watcher, it turns on by itself when Flask-Mail is installed.
 
+Add the `redis` extra (`flask-leeuwenhoek[redis]`) to record the commands sent with [redis-py](https://redis.readthedocs.io/). The Redis watcher turns on by itself when `redis` is installed.
+
 Add the `http` extra to install [requests](https://requests.readthedocs.io/) and [HTTPX](https://www.python-httpx.org/) for the outgoing HTTP watcher. Either one is enough, and the watcher turns on by itself if your app already uses one of them.
 
 ## Quickstart
@@ -81,6 +83,7 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `command` | `flask` CLI commands of `app.cli`: full name (`db seed` for subcommands), arguments, options, exit code and duration. Each command gets its own batch, see [CLI commands](#cli-commands). |
 | `http` | Outgoing HTTP calls made with [requests](https://requests.readthedocs.io/) or [HTTPX](https://www.python-httpx.org/) (sync and async clients): method, URL, request headers, payload, status, response headers, response body (JSON/text only), duration, redirects, and the error if the call raised. Enabled when either library is installed. |
 | `cache` | Flask-Caching operations (`get`, `get_many`, `get_dict`, `has`, `set`, `add`, `set_many`, `delete`, `delete_many`, `unlink`, `clear`), including the ones made by `@cache.cached` and `@cache.memoize` (with Flask-Caching 2.5 or newer; older versions, the last ones for Python 3.10, make the decorators talk to the backend directly and only the direct calls are recorded): keys, hit or miss for reads, TTL for writes, backend and duration. Values are stored only with `LEEUWENHOEK_CACHE_VALUES`. The Cache card of a request shows its hit and miss counts. |
+| `redis` | Commands sent with [redis-py](https://redis.readthedocs.io/) (`redis.Redis` and `redis.asyncio.Redis`): command, arguments (redacted and truncated), server, database, duration and the error if the command raised. A pipeline is one entry with its list of commands. See [Redis](#redis). |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
@@ -97,6 +100,14 @@ The detection runs as an `on_finish` callback, before the batch is saved, so [fi
 ### Outgoing HTTP
 
 Every call made through `requests` or `httpx` (including `httpx.AsyncClient`) is recorded, whichever client or session made it, and appears in the **HTTP client** section and as a card in the detail of the request that made it. Calls made outside a request are stored as standalone entries. The URL's query parameters and the payload and JSON response keys listed in `LEEUWENHOEK_HIDDEN_PARAMS` are masked, as are the headers in `LEEUWENHOEK_HIDDEN_HEADERS`; bodies are cut at `LEEUWENHOEK_MAX_BODY_KB`. Only JSON and text response bodies are kept, and never for streamed responses (`stream=True`), which are left unread. A `requests` redirect chain is one entry with the final URL and the number of redirects. Entries are tagged `host:<hostname>`, and calls that raised are tagged `failed`.
+
+### Redis
+
+Every command sent through `redis.Redis` or `redis.asyncio.Redis` (and their subclasses, such as `fakeredis`) is recorded, whichever client sent it, and appears in the **Redis** section and as a card, with the count and total time, in the detail of the request that sent it. Commands sent outside a request are standalone entries. A pipeline (`r.pipeline()`, with or without a transaction) is one `PIPELINE` entry listing its commands, the error of each one that failed with `raise_on_error=False`, and the time of the whole round trip; its queued commands are not recorded again. Commands that a pipeline in `WATCH` mode sends right away are recorded on their own. Return values are never stored.
+
+Arguments are decoded as UTF-8 (binary values are shown as `[binary: N bytes]`); at most 20 are kept per command, each cut at 200 characters, and at most 50 commands per pipeline. Passwords are never stored: the arguments of `AUTH`, the password of `HELLO ... AUTH` and `MIGRATE ... AUTH`/`AUTH2`, `CONFIG SET requirepass`/`masterauth` and the password rules of `ACL SETUSER` are replaced by `********`. When a key contains a name in `LEEUWENHOEK_HIDDEN_PARAMS` (`user:1:token`), every argument after it is masked, and a hash field or argument that contains one (`HSET user:1 password ...`) masks the value that follows it. Commands that raised are tagged `failed`.
+
+Libraries that use Redis are recorded at the command level too. With Flask-Caching's `RedisCache`, a `cache.get()` gives a `cache` entry and the `GET` it sent as a `redis` entry, in the same batch. RQ's commands are recorded as well: those sent while enqueueing join the request, and those a worker sends between jobs (polling, heartbeats) are standalone; drop them with [`lw.filter()`](#tags) or leave `redis` out of `LEEUWENHOEK_WATCHERS` if they are noise. Redis Cluster clients (`RedisCluster`) and Pub/Sub connections are not covered.
 
 ### `dump()`
 
@@ -139,7 +150,7 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`, `/http`, `/cache`, `/redis`), newest first, with search (`?q=`) and tag filter (`?tag=`); `/exceptions?resolved=1` includes resolved families |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
 | `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request or command on top |
