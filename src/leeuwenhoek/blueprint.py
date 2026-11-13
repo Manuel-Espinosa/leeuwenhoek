@@ -308,7 +308,6 @@ def batch(batch_id: str) -> str:
         abort(404)
     # The root one: a request batch can also hold the non-root entries of the jobs it enqueued.
     main = next((e for e in entries if e.type in MAIN_TYPES and e.is_root), None)
-    "job": "jobs",
     return render_template(
         "leeuwenhoek/batch.html",
         batch_id=batch_id,
