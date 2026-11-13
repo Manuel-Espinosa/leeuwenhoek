@@ -1,9 +1,15 @@
-{% from "leeuwenhoek/_macros.html" import time_ago, traceback %}
+{% from "leeuwenhoek/_macros.html" import time_ago, traceback, resolve_button with context %}
 {% macro head() %}<th>Class</th><th>Message</th><th>Family</th><th>When</th>{% endmacro %}
+{#- `resolved` (family hash -> resolve time) is only set by the Exceptions listing and its
+    rows endpoint, which then also show the Resolve / Reopen buttons. #}
 {% macro row(e) %}
-  <td><span class="tag is-danger">{{ e.content['class'].split('.')[-1] }}</span></td>
+  {% set families = resolved if resolved is defined else none %}
+  {% set resolved_at = families.get(e.family_hash) if families is not none and e.family_hash else none %}
+  <td><span class="tag is-danger">{{ e.content['class'].split('.')[-1] }}</span>
+    {%- if resolved_at %} <span class="tag is-success is-light">resolved</span>{% endif %}</td>
   <td>{{ e.content.message | lw_truncate(90) }}</td>
-  <td>{% if e.family_hash %}<a href="{{ url_for('leeuwenhoek.family', hash=e.family_hash) }}">view occurrences</a>{% endif %}</td>
+  <td>{% if e.family_hash %}<a href="{{ url_for('leeuwenhoek.family', hash=e.family_hash) }}">view occurrences</a>
+    {%- if families is not none %} {{ resolve_button(e.family_hash, resolved_at, small=true) }}{% endif %}{% endif %}</td>
   <td>{{ time_ago(e.created_at) }}</td>
 {% endmacro %}
 {% macro summary(e) %}<span class="tag is-danger">{{ e.content['class'].split('.')[-1] }}</span> {{ e.content.message | lw_truncate(100) }}{% endmacro %}
@@ -13,5 +19,11 @@
   <p class="subtitle is-6">{{ c.message }}</p>
   <p class="is-size-7 mb-3"><code>{{ c.file }}:{{ c.line }}</code>
     {% if e.family_hash %} · <a href="{{ url_for('leeuwenhoek.family', hash=e.family_hash) }}">other occurrences</a>{% endif %}</p>
+  {% if e.family_hash and resolved_at is defined %}
+    <div class="mb-3">
+      {%- if resolved_at %}<span class="tag is-success is-light mr-2">Resolved {{ time_ago(resolved_at) }}</span>{% endif %}
+      {{ resolve_button(e.family_hash, resolved_at) }}
+    </div>
+  {% endif %}
   {{ traceback(c.frames, c.traceback) }}
 {% endmacro %}

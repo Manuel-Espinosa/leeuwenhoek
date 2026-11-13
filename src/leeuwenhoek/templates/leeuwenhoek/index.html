@@ -5,8 +5,19 @@
   <div class="level">
     <div class="level-left"><h1 class="title is-4">{{ title }}</h1></div>
     <div class="level-right">
+      {% if slug == 'exceptions' %}
+        {#- Resolved families are hidden unless ?resolved=1; the other filters are kept. #}
+        {%- set toggle_args = {} -%}
+        {%- for k, v in dict(tag=tag, q=q).items() if v %}{% set _ = toggle_args.update({k: v}) %}{% endfor -%}
+        {%- if not show_resolved %}{% set _ = toggle_args.update(resolved='1') %}{% endif %}
+        <div class="level-item">
+          <a class="button is-small{{ ' is-success is-light' if show_resolved }}" href="{{ url_for('leeuwenhoek.listing', slug=slug, **toggle_args) }}">
+            {{- 'Hide resolved' if show_resolved else 'Show resolved' -}}</a>
+        </div>
+      {% endif %}
       <form method="get">
         <input type="hidden" name="q" value="{{ q }}">
+        {% if show_resolved %}<input type="hidden" name="resolved" value="1">{% endif %}
         <div class="field has-addons">
           <div class="control"><input class="input is-small" name="tag" placeholder="tag (e.g. status:500)" value="{{ tag }}"></div>
           <div class="control"><button class="button is-small" type="submit">Filter</button></div>

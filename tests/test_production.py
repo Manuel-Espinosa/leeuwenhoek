@@ -154,4 +154,34 @@ def test_postgres_roundtrip():
     storage.set_setting("recording", "1")
     assert storage.get_setting("recording") == "1"
     assert storage.prune(0) == 2
+
+    # Resolved exception families: hidden, then reopened by a newer occurrence.
+    now = utcnow()
+    for key in storage.settings("resolved:"):
+        storage.delete_setting(key)
+    storage.save(
+        [
+            Entry(type="exception", content={}, batch_id="b2", family_hash="f1", created_at=now),
+            Entry(type="exception", content={}, batch_id="b2", family_hash="f2", created_at=now),
+        ]
+    )
+    storage.resolve_family("f1", at=now + timedelta(seconds=1))
+    resolved = storage.resolved_families()
+    assert set(resolved) == {"f1"}
+    assert [x.family_hash for x in storage.list("exception", exclude_families=resolved)] == ["f2"]
+    storage.save(
+        [
+            Entry(
+                type="exception",
+                content={},
+                batch_id="b3",
+                family_hash="f1",
+                created_at=now + timedelta(seconds=2),
+            )
+        ]
+    )
+    assert storage.resolved_families() == {}
+    storage.reopen_family("f1")
+    assert storage.settings("resolved:") == {}
+    storage.clear()
     storage.close()

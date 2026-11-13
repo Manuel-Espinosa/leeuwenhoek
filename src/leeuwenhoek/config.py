@@ -42,6 +42,8 @@ DEFAULTS: dict[str, Any] = {
     "TRACK_MEMORY": False,  # record each request's peak memory with tracemalloc
     "SLOW_QUERY_MS": 100,  # queries slower than this are flagged as slow
     "CACHE_VALUES": False,  # store the values read and written by the cache watcher
+    "IGNORE_COMMANDS": [],  # CLI commands not recorded ("db upgrade", "db", "seed-*")
+    "N_PLUS_ONE_THRESHOLD": 5,  # same normalized query this many times in a batch; 0 disables
 }
 
 
