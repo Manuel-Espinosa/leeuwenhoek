@@ -52,16 +52,21 @@ class Leeuwenhoek:
         self._recording = (True, 0.0)
         #: Celery app whose tasks the celery watcher records; ``None`` means every Celery app
         self.celery: Any = None
+        #: Redis connection the panel enqueues RQ retries on (``rq_connection=``)
+        self.rq_connection: Any = None
         if app is not None:
             self.init_app(app, **kwargs)
 
     # ------------------------------------------------------------------ setup
 
-    def init_app(self, app: Flask, engine: Any = None, celery: Any = None) -> None:
+    def init_app(
+        self, app: Flask, engine: Any = None, celery: Any = None, rq_connection: Any = None
+    ) -> None:
         from .blueprint import bp
 
         self.app = app
         self.celery = celery
+        self.rq_connection = rq_connection
         self.config = Config(app)
         cfg = self.config
         if cfg.storage == "memory":

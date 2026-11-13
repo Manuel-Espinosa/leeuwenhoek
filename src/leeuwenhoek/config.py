@@ -45,6 +45,8 @@ DEFAULTS: dict[str, Any] = {
     "IGNORE_COMMANDS": [],  # CLI commands not recorded ("db upgrade", "db", "seed-*")
     "N_PLUS_ONE_THRESHOLD": 5,  # same normalized query this many times in a batch; 0 disables
     "SIGNALS": ["message_flashed"],  # Flask signals recorded by the event watcher
+    "ALLOW_RETRY": None,  # Retry button on failed jobs; None -> app.debug
+    "RQ_REDIS_URL": None,  # Redis to enqueue RQ retries on, if init_app got no rq_connection
 }
 
 
@@ -56,7 +58,7 @@ DB_PARTS = ("DRIVER", "USERNAME", "PASSWORD", "HOST", "PORT", "DATABASE", "SOCKE
 
 def _coerce(key: str, default: Any, raw: str) -> Any:
     """Turn an environment string into the type of the key's default."""
-    if key in ("ENABLED",) or isinstance(default, bool):
+    if key in ("ENABLED", "ALLOW_RETRY") or isinstance(default, bool):
         return raw.strip().lower() in TRUE
     if key == "BASIC_AUTH":
         user, _, password = raw.partition(":")

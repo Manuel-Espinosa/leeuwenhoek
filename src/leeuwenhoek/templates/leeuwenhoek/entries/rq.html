@@ -1,4 +1,4 @@
-{% from "leeuwenhoek/_macros.html" import duration, time_ago, json_tree %}
+{% from "leeuwenhoek/_macros.html" import duration, time_ago, json_tree, retry_button, retry_of_link with context %}
 {% macro status(s) -%}
   {%- set cls = {'finished': 'is-success', 'failed': 'is-danger', 'queued': 'is-info', 'deferred': 'is-warning', 'scheduled': 'is-warning'}.get(s, '') -%}
   <span class="tag {{ cls }}">{{ s }}</span>
@@ -24,10 +24,12 @@
   </div>
   <p class="mb-3">Job <code>{{ c.job_id }}</code>
     · <a href="{{ url_for('leeuwenhoek.listing', slug='rq', tag='rq_job:' ~ c.job_id) }}">{{ 'Dispatch and executions' if e.content.event == 'perform' else 'Executions' }} of this job</a>
-    {%- if e.parent_batch_id %} · <a href="{{ url_for('leeuwenhoek.batch', batch_id=e.parent_batch_id) }}">Enqueued by batch {{ e.parent_batch_id[:8] }}</a>{% endif %}</p>
+    {%- if e.parent_batch_id %} · <a href="{{ url_for('leeuwenhoek.batch', batch_id=e.parent_batch_id) }}">Enqueued by batch {{ e.parent_batch_id[:8] }}</a>{% endif %}
+    {{- retry_of_link(e) }}</p>
   {% if c.error %}
   <div class="notification is-danger is-light"><strong>{{ c.error['class'] }}</strong>: {{ c.error.message }}</div>
   {% endif %}
+  {{ retry_button(e) }}
   {% if c.args_redacted %}<p class="is-size-7 has-text-grey mb-2">Some arguments were redacted or truncated.</p>{% endif %}
   <div class="lw-tabs">
     <div class="tabs"><ul>

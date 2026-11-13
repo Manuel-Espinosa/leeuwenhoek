@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Mapping
 from datetime import datetime
@@ -22,6 +23,7 @@ from flask import (
 from markupsafe import Markup, escape
 from werkzeug.wrappers import Response as BaseResponse
 
+from . import retry
 from .auth import CSRF_COOKIE, check_access, csrf_token, verify_csrf
 from .models import Entry, utcnow
 from .storage.base import Page
@@ -58,6 +60,8 @@ SLUGS = {
 MAIN_TYPES = ("request", "command", "schedule", "rq", "job")
 TYPES = {slug: type_ for type_, slug in SLUGS.items()}
 BATCHES = "batches"
+
+log = logging.getLogger("leeuwenhoek")
 
 
 def lw():
@@ -125,6 +129,8 @@ def _inject() -> dict[str, Any]:
         "slug_for": lambda type_: SLUGS.get(type_, type_),
         "use_cdn": lw().config.bulma_cdn,
         "poll_seconds": _poll_seconds(),
+        "is_failed_run": retry.is_failed_run,
+        "retry_problem": lambda entry: retry.problem(lw(), entry),
     }
 
 
@@ -288,17 +294,50 @@ def rows(slug: str) -> str:
     )
 
 
-@bp.get("/<slug>/<uuid>")
-def detail(slug: str, uuid: str) -> str:
+def _entry(slug: str, uuid: str) -> Entry:
+    """The entry ``uuid`` of the section ``slug``; 404 otherwise."""
     entry = lw().storage.get(uuid)
     if entry is None or SLUGS.get(entry.type) != slug:
         abort(404)
+    return entry
+
+
+def _detail(entry: Entry, **extra: Any) -> str:
     return render_template(
         "leeuwenhoek/detail.html",
         entry=entry,
         related=_group(lw().storage.batch(entry.batch_id), skip=entry),
         resolved_at=_resolved_at(entry.family_hash),
+        **extra,
     )
+
+
+@bp.get("/<slug>/<uuid>")
+def detail(slug: str, uuid: str) -> str:
+    # ``retried``: id of the task or job just dispatched by the Retry button
+    return _detail(_entry(slug, uuid), retried=request.args.get("retried"))
+
+
+@bp.post("/<slug>/<uuid>/retry")
+def retry_entry(slug: str, uuid: str) -> BaseResponse | tuple[str, int]:
+    """Dispatch a failed Celery task or RQ job again with its original arguments.
+
+    409 when the entry can't be retried (not a failed run, redacted arguments, no RQ connection),
+    403 when retrying is disabled, 502 when dispatching fails; the detail page says why.
+    """
+    entry = _entry(slug, uuid)
+    if entry.type not in retry.TYPES:
+        abort(404)
+    if not retry.allowed(lw()):
+        return _detail(entry, retry_error=retry.problem(lw(), entry)), 403
+    try:
+        new_id = retry.retry(lw(), entry)
+    except retry.RetryError as e:
+        return _detail(entry, retry_error=str(e)), 409
+    except Exception as e:  # broker or Redis down, task not importable...
+        log.exception("Could not retry %s %s", entry.type, entry.uuid)
+        return _detail(entry, retry_error=f"Could not dispatch the job: {e}"), 502
+    return redirect(url_for("leeuwenhoek.detail", slug=slug, uuid=uuid, retried=new_id))
 
 
 @bp.get("/batch/<batch_id>")

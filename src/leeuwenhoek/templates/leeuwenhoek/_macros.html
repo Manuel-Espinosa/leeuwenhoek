@@ -101,3 +101,29 @@
     {%- endif %}
   </form>
 {%- endmacro %}
+
+{# Retry button of a failed Celery or RQ run (POST with the panel's CSRF token), disabled with the
+   reason when the run can't be dispatched again. Nothing for other entries. Import `with
+   context`. #}
+{% macro retry_button(entry) -%}
+  {% if is_failed_run(entry) %}
+    {% set reason = retry_problem(entry) %}
+    <div class="mb-3">
+      <form method="post" class="lw-inline-form" action="{{ url_for('leeuwenhoek.retry_entry', slug=slug_for(entry.type), uuid=entry.uuid) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {%- if reason %}
+          <button class="button is-small is-warning is-light" type="submit" disabled title="{{ reason }}">Retry</button>
+        {%- else %}
+          <button class="button is-small is-warning is-light" type="submit" title="Dispatch again with the original arguments">Retry</button>
+        {%- endif %}
+      </form>
+      <a class="is-size-7 ml-2" href="{{ url_for('leeuwenhoek.listing', slug=slug_for(entry.type), tag='retry_of:' ~ entry.uuid) }}">Retries of this run</a>
+      {% if reason %}<p class="help">{{ reason }}</p>{% endif %}
+    </div>
+  {% endif %}
+{%- endmacro %}
+
+{# "Retry of" link from a run dispatched by the Retry button to the failed run it retries. #}
+{% macro retry_of_link(entry) -%}
+  {%- if entry.content.retry_of %} · <a href="{{ url_for('leeuwenhoek.detail', slug=slug_for(entry.type), uuid=entry.content.retry_of) }}">Retry of {{ entry.content.retry_of[:8] }}</a>{% endif -%}
+{%- endmacro %}

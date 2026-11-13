@@ -26,6 +26,7 @@ src/leeuwenhoek/
 ├── tags.py          # Dotted-path tag extraction, normalization, tagger callbacks
 ├── auth.py          # Panel access control and CSRF token
 ├── blueprint.py     # Panel views and Jinja filters
+├── retry.py         # Dispatching a failed Celery task or RQ job again from the panel
 ├── cli.py           # flask leeuwenhoek ...
 ├── storage/         # StorageDriver interface, SQLAlchemy driver, in-memory driver
 ├── watchers/        # One module per entry type: request, exception, query, log, dump, template, command, http, cache, model, event, redis, schedule, rq, job
@@ -75,6 +76,8 @@ Indexes: `batch_id`, `family_hash`, `type`, `created_at`, `(type, created_at)`.
 `leeuwenhoek_tags` (`entry_uuid`, `tag`) holds tags, indexed by `tag`. `leeuwenhoek_settings` (`key`, `value`) holds state shared by all instances, such as the recording flag and resolved exception families. Drivers expose it through `get_setting`, `set_setting`, `delete_setting` and `settings(prefix)`.
 
 A resolved family is the setting `resolved:<family_hash>`, whose value is the resolve time (ISO, UTC). It reopens lazily: a family counts as resolved only while its newest occurrence is not newer than that time, so nothing is written when an exception is recorded and the writer thread never races with the panel. The Exceptions listing (and its live-polling rows) reads every `resolved:` setting, checks them with one grouped `MAX(created_at)` query (`last_seen`), and leaves the still-resolved families out with a `family_hash NOT IN (...)` filter. An occurrence recorded before the resolve time but written later (async writer) does not reopen the family, because `created_at` is taken when the exception happens. Resolve times come from the panel's clock and `created_at` from the recording instance's, so keep instance clocks in sync.
+
+A retry from the panel stores no state of its own: the link travels with the job. The Celery dispatch carries the failed entry's uuid in the `leeuwenhoek_retry_of` message header (read from `task.request` on a worker, from `task.request.headers` in eager mode), and the RQ job in `job.meta["leeuwenhoek_retry_of"]`. The watchers copy it into the new run's `content["retry_of"]` and its `retry_of:<uuid>` tag, so the failed run finds its retries with an ordinary tag filter. Only arguments stored exactly (`args_redacted` false) are ever dispatched.
 
 Pagination is by cursor (`before=<id>` / `after=<id>`), never by offset.
 

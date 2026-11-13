@@ -18,6 +18,8 @@ from .exception import ExceptionWatcher
 #: message headers set on publish, read back by the worker (``task.request.<header>``)
 PARENT_HEADER = "leeuwenhoek_parent_batch_id"
 BATCH_HEADER = "leeuwenhoek_batch_id"
+#: set by the panel's Retry button: uuid of the failed run entry this run retries
+RETRY_HEADER = "leeuwenhoek_retry_of"
 
 SIGNALS = ("before_task_publish", "task_prerun", "task_failure", "task_retry", "task_postrun")
 
@@ -151,7 +153,12 @@ class CeleryWatcher(Watcher):
         if batch_id:
             batch.id = batch_id  # nothing has been recorded in it yet
         batch.meta["task_id"] = task_id
-        run = {"batch": batch, "token": token, "started": time.perf_counter()}
+        run = {
+            "batch": batch,
+            "token": token,
+            "started": time.perf_counter(),
+            "retry_of": _header(request, RETRY_HEADER),
+        }
         with self._lock:
             self._running.setdefault(task_id, []).append(run)
 
@@ -242,6 +249,9 @@ class CeleryWatcher(Watcher):
             "retry_reason": run.get("retry_reason"),
         }
         tags = [f"task:{task.name}", f"state:{state}"]
+        if retry_of := run.get("retry_of"):
+            content["retry_of"] = retry_of
+            tags.append(f"retry_of:{retry_of}")
         self.record(content, tags=tags, is_root=True, force=True)
 
     # ------------------------------------------------------------------ helpers
@@ -267,6 +277,14 @@ class CeleryWatcher(Watcher):
             or getattr(task, "queue", None)
             or task.app.conf.task_default_queue
         )
+
+
+def _header(request: Any, name: str) -> Any:
+    """A custom message header: an attribute on a worker, in ``request.headers`` when eager."""
+    value = getattr(request, name, None)
+    if value is None:
+        value = (getattr(request, "headers", None) or {}).get(name)
+    return value
 
 
 def _body_args(body: Any) -> tuple[Any, Any]:

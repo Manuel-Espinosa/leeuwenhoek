@@ -18,6 +18,8 @@ from .exception import ExceptionWatcher
 PARENT_KEY = "leeuwenhoek_parent_batch_id"
 #: ``batch.meta`` key marking a job batch with the id of the job it runs
 JOB_KEY = "rq_job_id"
+#: ``job.meta`` key set by the panel's Retry button: uuid of the failed execution it retries
+RETRY_KEY = "leeuwenhoek_retry_of"
 
 
 class RQWatcher(Watcher):
@@ -166,7 +168,7 @@ class RQWatcher(Watcher):
         # ``args`` and ``kwargs`` are the original arguments, ready to enqueue the job again, only
         # if nothing was masked, truncated or turned into a string to fit in JSON.
         redacted = redacted or jsonable(shown_args) != args or jsonable(shown_kwargs) != kwargs
-        return {
+        content = {
             "job_id": job.id,
             "function": job.func_name,
             "queue": job.origin,
@@ -176,9 +178,15 @@ class RQWatcher(Watcher):
             "kwargs": shown_kwargs,
             "args_redacted": redacted,
         }  # not ``job.description``: it repeats the arguments, unredacted
+        if retry_of := job.meta.get(RETRY_KEY):
+            content["retry_of"] = retry_of
+        return content
 
     def _tags(self, job: Any, status: str) -> list[str]:
-        return [f"rq_job:{job.id}", f"rq_queue:{job.origin}", f"rq_status:{status}"]
+        tags = [f"rq_job:{job.id}", f"rq_queue:{job.origin}", f"rq_status:{status}"]
+        if retry_of := job.meta.get(RETRY_KEY):
+            tags.append(f"retry_of:{retry_of}")
+        return tags
 
 
 def _status(job: Any) -> str:

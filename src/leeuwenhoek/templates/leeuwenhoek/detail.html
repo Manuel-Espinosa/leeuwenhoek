@@ -9,6 +9,12 @@
     <li><a href="{{ url_for('leeuwenhoek.batch', batch_id=entry.batch_id) }}">View full batch</a></li>
   </ul></nav>
 
+  {% if retry_error %}
+  <div class="notification is-danger is-light">Retry not dispatched: {{ retry_error }}</div>
+  {% elif retried %}
+  <div class="notification is-success is-light">Retry dispatched (id <code>{{ retried }}</code>).
+    <a href="{{ url_for('leeuwenhoek.listing', slug=slug_for(entry.type), tag='retry_of:' ~ entry.uuid) }}">View the new run</a></div>
+  {% endif %}
   <div class="box">
     {{ t.detail(entry) }}
     {{ tags(entry.tags) }}
