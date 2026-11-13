@@ -1,0 +1,19 @@
+{% from "leeuwenhoek/_macros.html" import time_ago, json_tree %}
+{% macro head() %}<th>Signal</th><th>Sender</th><th>Arguments</th><th>When</th>{% endmacro %}
+{% macro row(e) %}
+  <td><span class="tag">{{ e.content.signal }}</span></td>
+  <td class="is-size-7">{{ (e.content.sender or "—") | lw_truncate(60) }}</td>
+  <td class="is-size-7">{{ e.content.kwargs | tojson | lw_truncate(90) if e.content.kwargs else "" }}</td>
+  <td>{{ time_ago(e.created_at) }}</td>
+{% endmacro %}
+{% macro summary(e) %}event <span class="tag">{{ e.content.signal }}</span> <span class="has-text-grey">{{ (e.content.sender or "") | lw_truncate(60) }}</span>{% endmacro %}
+{% macro detail(e) %}
+  {% set c = e.content %}
+  <table class="table is-narrow is-fullwidth">
+    <tr><th>Signal</th><td><code>{{ c.signal }}</code></td></tr>
+    <tr><th>Sender</th><td>{% if c.sender %}<code>{{ c.sender }}</code>{% else %}—{% endif %}</td></tr>
+    {% if c.sender_type %}<tr><th>Sender type</th><td><code>{{ c.sender_type }}</code></td></tr>{% endif %}
+  </table>
+  <p class="mt-3 mb-1"><strong>Arguments</strong></p>
+  {% if c.kwargs %}{{ json_tree(c.kwargs, open=true) }}{% else %}<p class="has-text-grey">None</p>{% endif %}
+{% endmacro %}

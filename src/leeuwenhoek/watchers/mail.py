@@ -35,6 +35,9 @@ class MailWatcher(Watcher):
             self._signal.disconnect(self._dispatched)
             self._signal = None
 
+    def signals(self) -> tuple[Any, ...]:
+        return (self._signal,) if self._signal is not None else ()
+
     def _dispatched(self, app: Flask, message: Any = None, **extra: Any) -> None:
         if message is None:
             return

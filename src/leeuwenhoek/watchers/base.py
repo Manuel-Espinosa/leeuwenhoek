@@ -44,6 +44,10 @@ class Watcher(ABC):
     def unregister(self) -> None:
         """Undo what ``register`` did outside the app (global handlers, listeners)."""
 
+    def signals(self) -> tuple[Any, ...]:
+        """Blinker signals this watcher already records, which the event watcher leaves out."""
+        return ()
+
     def record(self, content: dict[str, Any], **kwargs: Any):
         return self.lw.record(self.entry_type, content, **kwargs)
 

@@ -47,10 +47,14 @@ SLUGS = {
     "command": "commands",
     "http": "http",
     "cache": "cache",
+    "model": "models",
+    "event": "events",
+    "redis": "redis",
+    "schedule": "schedule",
     "rq": "rq",
 }
 #: entry types that start a batch, shown on top of the batch page
-MAIN_TYPES = ("request", "command", "rq")
+MAIN_TYPES = ("request", "command", "schedule", "rq")
 TYPES = {slug: type_ for type_, slug in SLUGS.items()}
 BATCHES = "batches"
 
