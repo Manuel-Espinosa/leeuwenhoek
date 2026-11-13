@@ -179,6 +179,22 @@ from leeuwenhoek import add_tags
 add_tags(f"customer:{customer.id}")
 ```
 
+## Filters
+
+A filter decides which entries are stored. It receives an entry and returns `True` to keep it. Several can be registered, and `lw.filter` works as a decorator too:
+
+```python
+# Skip "304 Not Modified" responses
+lw.filter(lambda e: not (e.type == "request" and e.content["status"] == 304))
+
+
+@lw.filter
+def no_debug_logs(entry):
+    return not (entry.type == "log" and entry.content["level"] == "DEBUG")
+```
+
+Filters run when a batch is saved, before tagging. If a filter drops the root entry of a batch (the request entry, for example), the whole batch is dropped. A filter that raises is logged and the entry is kept.
+
 ## Running in production or staging
 
 Leeuwenhoek is built for development first. For shared environments, a reasonable setup is:

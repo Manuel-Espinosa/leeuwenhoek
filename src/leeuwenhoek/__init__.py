@@ -14,7 +14,7 @@ from flask import Flask, current_app, has_app_context, request
 from . import context
 from .config import Config
 from .context import Batch, current_batch, is_internal
-from .filters import is_ignored
+from .filters import EntryFilter, is_ignored
 from .models import Entry, jsonable
 from .storage import MemoryStorage, SQLAlchemyStorage, StorageDriver
 from .tags import Tagger, normalize
@@ -40,6 +40,7 @@ class Leeuwenhoek:
         #: callbacks ``fn(batch, exc)`` run when a batch closes, before it is persisted
         self.on_finish: list[Callable[[Batch, BaseException | None], None]] = []
         self._authorize: Callable[[], bool] | None = None
+        self._filters: list[EntryFilter] = []
         self._taggers: list[Tagger] = []
         self._writer: Writer | None = None
         self._recording = (True, 0.0)
@@ -104,6 +105,15 @@ class Leeuwenhoek:
         """Panel access rule. Replaces the default check (``app.debug``)."""
         self._authorize = rule
         return rule
+
+    def filter(self, fn: EntryFilter) -> EntryFilter:
+        """Register a callback ``fn(entry) -> bool``, ``True`` to keep; usable as a decorator.
+
+        Filters run when a batch is persisted, before tagging. Dropping the root entry drops the
+        whole batch. A filter that raises is logged and the entry is kept.
+        """
+        self._filters.append(fn)
+        return fn
 
     def tag(self, tagger: Tagger) -> Tagger:
         """Register a callback ``fn(entry) -> iterable of tags``; usable as a decorator."""
@@ -226,13 +236,35 @@ class Leeuwenhoek:
         return entry
 
     def persist(self, batch: Batch) -> None:
-        if not batch.entries:
+        if not batch.entries or not self._apply_filters(batch):
             return
         self._apply_tags(batch)
         if self._writer is not None:
             self._writer.put(batch.entries)
         else:
             self._save(batch.entries)
+
+    def _apply_filters(self, batch: Batch) -> bool:
+        """Remove the entries a filter rejects. ``False`` if nothing is left to persist."""
+        if not self._filters:
+            return True
+        kept: list[Entry] = []
+        for entry in batch.entries:
+            if self._keep(entry):
+                kept.append(entry)
+            elif entry.is_root:
+                return False  # without its root entry the batch would be unreachable
+        batch.entries = kept
+        return bool(kept)
+
+    def _keep(self, entry: Entry) -> bool:
+        for fn in self._filters:
+            try:
+                if not fn(entry):
+                    return False
+            except Exception:
+                log.exception("An entry filter failed")
+        return True
 
     def _apply_tags(self, batch: Batch) -> None:
         for entry in batch.entries:
