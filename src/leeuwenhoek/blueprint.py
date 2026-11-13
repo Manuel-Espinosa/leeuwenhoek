@@ -41,7 +41,10 @@ SLUGS = {
     "exception": "exceptions",
     "log": "logs",
     "dump": "dumps",
+    "command": "commands",
 }
+#: entry types that start a batch, shown on top of the batch page
+MAIN_TYPES = ("request", "command")
 TYPES = {slug: type_ for type_, slug in SLUGS.items()}
 BATCHES = "batches"
 
@@ -321,7 +324,7 @@ def batch(batch_id: str) -> str:
     entries = lw().storage.batch(batch_id)
     if not entries:
         abort(404)
-    main = next((e for e in entries if e.type == "request"), None)
+    main = next((e for e in entries if e.type in MAIN_TYPES), None)
     return render_template(
         "leeuwenhoek/batch.html",
         batch_id=batch_id,

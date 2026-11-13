@@ -70,10 +70,11 @@ Visit `/users`, `/boom` and `/dump`, then open `/leeuwenhoek`.
 | `exception` | Class, message, full traceback with a code snippet for each frame. Repeated exceptions are grouped into **families** (same class, file and line). Also captures exceptions turned into 5xx responses by your own error handlers, and uncaught exceptions in scripts, CLI commands and threads (through `sys.excepthook` and `threading.excepthook`, which are chained and restored by `lw.close()`). |
 | `log` | Level, message, logger name, `extra` fields and `exc_info`, from a handler on the root logger |
 | `dump` | Whatever you pass to `dump()`, with the file and line it was called from |
+| `command` | `flask` CLI commands of `app.cli`: full name (`db seed` for subcommands), arguments, options, exit code and duration. Each command gets its own batch, see [CLI commands](#cli-commands). |
 
 By default every watcher whose library is installed is enabled, so integration watchers (mail, Celery, Redis...) turn on by themselves when you install the package they observe. Set `LEEUWENHOEK_WATCHERS` to pick them explicitly, e.g. `LEEUWENHOEK_WATCHERS=request,exception`. Only enabled watchers appear in the panel menu.
 
-Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Log entries get `level:<LEVEL>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow.
+Requests automatically get the tags `endpoint:<name>`, `status:<code>` and `user:<id>`. Commands get `command:<name>` and `exit_code:<code>`. Log entries get `level:<LEVEL>`. Slow queries get `slow`, show a yellow **slow** badge in the panel, and the Queries card of a request shows how many of its queries were slow.
 
 ### `dump()`
 
@@ -87,6 +88,23 @@ def checkout():
     return "ok"
 ```
 
+### CLI commands
+
+Every command you add to `app.cli` (with `@app.cli.command()`, a nested group or a blueprint's `cli`) gets its own batch, so the queries, logs and exceptions it produces are grouped under it, as they are under a request. Commands registered after `init_app` are recorded too.
+
+```python
+@app.cli.command("seed")
+@click.argument("count", type=int)
+@click.option("--token")
+def seed(count, token):
+    app.logger.info("seeding %s users", count)
+    db.session.execute(...)
+```
+
+`flask seed 10 --token=abc` records a `command` entry with `{"count": 10}` as arguments, `{"token": "********"}` as options (values are redacted with `LEEUWENHOEK_HIDDEN_PARAMS`), the exit code and the duration, plus the log line and the query, all in one batch. The exit code is `0`, the code given to `sys.exit()` or `ctx.exit()`, the code of a `click.ClickException` (`2` for a usage error), or `1` when the command raises. An exception raised by the command is recorded in its batch, and the batch is saved even though the command failed.
+
+Like requests, commands are only recorded while Leeuwenhoek is enabled: run them with `flask --debug ...` or set `LEEUWENHOEK_ENABLED`. Skip some with `LEEUWENHOEK_IGNORE_COMMANDS`: an entry matches a command by its full name, by a group prefix (`"db"` skips `db upgrade`) or as a glob (`"seed-*"`). Nothing that happens inside an ignored command is recorded. `flask leeuwenhoek ...`, `flask run` and `flask shell` never get a command entry or a batch: each request served by `flask run` gets its own batch as usual, and a shell session, which can last for hours and isn't one unit of work, stores what you run in it as standalone entries.
+
 ### Peak memory
 
 Set `LEEUWENHOEK_TRACK_MEMORY=true` to record how much memory each request allocated at its peak. It is shown as **Peak memory** in the request detail and stored as `memory_peak_kb` in the entry.
@@ -99,10 +117,10 @@ It uses `tracemalloc`, which is off by default because it slows down every alloc
 
 | URL | Shows |
 |---|---|
-| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`), newest first, with search (`?q=`) and tag filter (`?tag=`) |
+| `/leeuwenhoek/requests` | Requests (also `/queries`, `/exceptions`, `/logs`, `/dumps`, `/commands`), newest first, with search (`?q=`) and tag filter (`?tag=`) |
 | `/leeuwenhoek/batches` | One row per batch |
 | `/leeuwenhoek/<type>/<uuid>` | One entry, plus everything else from its batch grouped by type |
-| `/leeuwenhoek/batch/<batch_id>` | A whole batch |
+| `/leeuwenhoek/batch/<batch_id>` | A whole batch, with its request or command on top |
 | `/leeuwenhoek/exceptions/family/<hash>` | Every occurrence of one exception |
 | `/leeuwenhoek/<type>/rows?after=<id>` | HTML `<tr>` rows of the entries newer than `<id>`, with the same filters as the listing (used by live polling) |
 | `/leeuwenhoek/api/status` | JSON: recording state and counts per type |
@@ -121,6 +139,7 @@ Each setting is read from `app.config["LEEUWENHOEK_<KEY>"]` first, then from an 
 | `LEEUWENHOEK_URL_PREFIX` | `/leeuwenhoek` | Where the panel is mounted. Requests under it are never recorded. |
 | `LEEUWENHOEK_WATCHERS` | every watcher whose library is installed | Watchers to enable. A listed watcher whose library is missing is skipped with a warning. |
 | `LEEUWENHOEK_IGNORE_PATHS` | `["/static*", "/favicon.ico", "/health*"]` | Glob patterns of paths that are not recorded |
+| `LEEUWENHOEK_IGNORE_COMMANDS` | `[]` | CLI commands that are not recorded: full names, group prefixes or glob patterns, see [CLI commands](#cli-commands) |
 | `LEEUWENHOEK_HIDDEN_HEADERS` | `["authorization", "cookie", "x-api-key"]` | Headers replaced by `********` |
 | `LEEUWENHOEK_HIDDEN_PARAMS` | `["password", "password_confirmation", "token", "secret"]` | Keys replaced by `********` in bodies, query strings and sessions, at any depth |
 | `LEEUWENHOEK_MAX_BODY_KB` | `64` | Bodies larger than this are truncated |

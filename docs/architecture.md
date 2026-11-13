@@ -28,7 +28,7 @@ src/leeuwenhoek/
 ├── blueprint.py     # Panel views and Jinja filters
 ├── cli.py           # flask leeuwenhoek ...
 ├── storage/         # StorageDriver interface, SQLAlchemy driver, in-memory driver
-├── watchers/        # One module per entry type: request, exception, query, log, dump
+├── watchers/        # One module per entry type: request, exception, query, log, dump, command
 ├── templates/leeuwenhoek/
 └── static/leeuwenhoek/   # bundled Bulma, CSS and vanilla JS
 ```
@@ -42,6 +42,17 @@ src/leeuwenhoek/
 5. **Writer**: a daemon thread takes batches from a bounded `queue.Queue` and stores each one with a single insert. When the queue is full, the batch is dropped and a rate-limited warning is logged. A request is never blocked by the storage. The thread is started lazily and restarted if the PID changes (after a fork, for example `gunicorn --preload`). Pending batches are flushed at exit (`atexit`, with `FLUSH_TIMEOUT`). The same thread prunes old entries periodically, with jitter so several instances don't prune at the same time.
 
 `ContextVar` is used instead of `flask.g` because it also works outside an app context, and with threads, gevent and async views.
+
+### Batches outside a request
+
+Requests use `before_request` and `teardown_request`. Anything else that is one unit of work (a CLI command, and later a job) opens its batch with `lw.batch(kind)`, a context manager over `lw.open_batch()` and `lw.close_batch()`, which are what the request hooks use too:
+
+```python
+with lw.batch("job", parent_id=dispatching_batch_id) as batch:
+    run_the_job()  # queries, logs, exceptions... join `batch`
+```
+
+`open_batch` applies the same decision as a request (enabled, sampling, recording paused) plus the caller's own `skip`, and makes the batch current. `close_batch` runs the `on_finish` callbacks with the exception, if any, applies `ONLY_ERRORS`, persists the batch and restores the previous one. The context manager persists the batch also when the block raises, and lets the exception propagate.
 
 ## Data model
 
@@ -79,7 +90,9 @@ A watcher subclasses `watchers.base.Watcher`, declares `name`, `entry_type` and 
 
 A watcher for an optional library declares it in `requires` (a module name such as `"flask_mail"`, or a tuple of them) and imports it inside `register`, never at module level, so `watchers/__init__.py` still loads without it. `Watcher.available()` checks the requirements with `importlib.util.find_spec`, and `Watcher.missing()` lists the ones not installed. When `LEEUWENHOEK_WATCHERS` is not set, `default_watchers()` enables every watcher in `AVAILABLE` that is available. A configured watcher whose requirement is missing is skipped with a warning.
 
-The exception watcher also chains `sys.excepthook` and `threading.excepthook`, so exceptions that nothing catches are recorded too: in scripts, in threads, and in `flask` CLI commands (Click only handles its own exceptions and lets the rest reach `sys.excepthook`). The previous hook is always called afterwards. The exception joins the batch that is current in the failing thread (a job running in a worker thread, for example); otherwise it is stored as `standalone`. A CLI command has no batch of its own yet, and by the time `sys.excepthook` runs its context is gone, so its exception is standalone. An exception is marked once recorded, so one that was already captured by the request path and then reaches a hook is not recorded twice. `unregister()` restores the previous hooks if they are still ours. If another hook was chained on top since, ours stays in the chain and only delegates, so several instances, or repeated `init_app` in tests, can be closed in any order.
+The exception watcher also chains `sys.excepthook` and `threading.excepthook`, so exceptions that nothing catches are recorded too: in scripts, in threads, and in `flask` CLI commands (Click only handles its own exceptions and lets the rest reach `sys.excepthook`). The previous hook is always called afterwards. The exception joins the batch that is current in the failing thread (a job running in a worker thread, for example); otherwise it is stored as `standalone`. By the time `sys.excepthook` runs, a CLI command's batch is already closed, so the command watcher captures the exception itself, inside the command's batch, before closing it. An exception is marked once recorded, so one that was already captured by the request path or by the command watcher and then reaches a hook is not recorded twice. `unregister()` restores the previous hooks if they are still ours. If another hook was chained on top since, ours stays in the chain and only delegates, so several instances, or repeated `init_app` in tests, can be closed in any order.
+
+The command watcher wraps `click.Command.invoke`, which every Click command (and every group dispatching to a subcommand) goes through. It picks the commands of `app.cli` when they run, by looking the command up in the `app.cli` tree, so nested groups, blueprint commands and commands registered after `init_app` are all found, and commands outside `app.cli` (`flask routes`, plugins) are not. Groups are skipped: the batch belongs to the leaf command, named by its full path (`db migrations apply`). The wrapper opens a `kind="command"` batch with `lw.batch()`, records the command as the root entry when the command returns or raises, and passes exceptions that are not Click's own exits or errors to the exception watcher's `capture()`. Like the exception hooks, the wrapper is chained: `unregister()` puts the previous `invoke` back if ours is still installed, otherwise ours stays and only delegates.
 
 Planned watchers and their hooks are described in the [issues](https://github.com/Manuel-Espinosa/flask-leeuwenhoek/issues?q=label%3Awatcher).
 
