@@ -9,6 +9,7 @@ from .log import LogWatcher
 from .mail import MailWatcher
 from .model import ModelWatcher
 from .query import QueryWatcher
+from .redis_client import RedisWatcher
 from .request import RequestWatcher
 from .template import TemplateWatcher
 
@@ -28,6 +29,7 @@ AVAILABLE: dict[str, type[Watcher]] = {
         CacheWatcher,
         ModelWatcher,
         EventWatcher,
+        RedisWatcher,
     )
 }
 

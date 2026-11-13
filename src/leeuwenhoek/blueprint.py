@@ -49,6 +49,7 @@ SLUGS = {
     "cache": "cache",
     "model": "models",
     "event": "events",
+    "redis": "redis",
 }
 #: entry types that start a batch, shown on top of the batch page
 MAIN_TYPES = ("request", "command")
